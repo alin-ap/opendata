@@ -235,11 +235,22 @@ async function boot() {
 
   const initial = getIndexUrlFromQuery() || window.localStorage.getItem(STORAGE_KEY);
   if (!initial) {
-    openConfig("");
-    return;
+    // If the portal is hosted in the same bucket as index.json (e.g. R2), try
+    // a relative default: /portal/index.html -> ../index.json.
+    const auto = new URL("../index.json", window.location.href).toString();
+    try {
+      await fetchJson(auto);
+      state.indexUrl = auto;
+      window.localStorage.setItem(STORAGE_KEY, auto);
+      await reloadIndex(state);
+    } catch (_) {
+      openConfig("");
+      return;
+    }
+  } else {
+    state.indexUrl = initial;
+    await reloadIndex(state);
   }
-  state.indexUrl = initial;
-  await reloadIndex(state);
 
   window.addEventListener("hashchange", () => {
     handleRoute(state);

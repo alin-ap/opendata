@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from opendata.metadata import load_metadata
+from opendata.portal_publish import publish_portal_assets
 from opendata.registry import Registry
 from opendata.storage import storage_from_env
 
@@ -74,6 +75,12 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Build/refresh the global registry index after producers run.
     reg.build_from_producer_root(root)
+
+    # Publish portal assets alongside the datasets.
+    repo_root = Path(__file__).resolve().parents[1]
+    portal_dir = repo_root / "portal"
+    if portal_dir.exists():
+        publish_portal_assets(storage, portal_dir=portal_dir)
 
     if failures:
         print("failures:")

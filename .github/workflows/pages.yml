@@ -2,11 +2,6 @@ name: pages
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main"]
-    paths:
-      - "portal/**"
-      - ".github/workflows/pages.yml"
 
 permissions:
   contents: read
@@ -29,8 +24,7 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
+        # Requires Pages to be enabled in repo settings.
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
