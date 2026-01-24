@@ -22,4 +22,5 @@ repo: https://github.com/example/repo
     assert workflow_path.exists()
 
     text = workflow_path.read_text(encoding="utf-8")
-    assert "od push official/us-stock-daily" in text
+    assert "OPENDATA_R2_ENDPOINT_URL" in text
+    assert "python main.py" in text

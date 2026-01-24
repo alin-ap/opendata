@@ -2,7 +2,7 @@
 
 Source: Stooq CSV endpoint.
 
-This producer downloads the full daily history for `AAPL.US` and writes it to `out/data.parquet`.
+This producer downloads the full daily history for `AAPL.US` and publishes it to R2 as Parquet.
 
 Columns:
 

@@ -30,17 +30,17 @@ def init_dataset_repo(*, dataset_id: str, directory: Path) -> None:
         main_path.write_text(
             """# Producer entrypoint for opendata\n"
             "#\n"
-            "# Expected output: write a Parquet file to ./out/data.parquet\n"
-            "# (the deployment workflow will upload it to R2)\n\n"
+            "# This script should publish directly via the opendata SDK.\n"
+            "# Configure storage via env vars (OPENDATA_STORAGE=local|r2, etc).\n\n"
             "from __future__ import annotations\n\n"
             "from pathlib import Path\n\n"
             "import pandas as pd\n\n\n"
+            "from opendata.producer import publish_dataframe_from_dir\n\n\n"
             "def main() -> None:\n"
-            "    out_dir = Path('out')\n"
-            "    out_dir.mkdir(parents=True, exist_ok=True)\n\n"
+            "    producer_dir = Path(__file__).resolve().parent\n\n"
             "    # TODO: replace with real data fetch/transform\n"
             "    df = pd.DataFrame({'hello': ['world']})\n"
-            "    df.to_parquet(out_dir / 'data.parquet', index=False)\n\n\n"
+            "    publish_dataframe_from_dir(producer_dir, df=df)\n\n\n"
             "if __name__ == '__main__':\n"
             "    main()\n",
             encoding="utf-8",

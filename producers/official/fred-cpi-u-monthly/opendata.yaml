@@ -1,0 +1,11 @@
+meta_version: 1
+id: official/fred-cpi-u-monthly
+title: FRED CPIAUCSL (CPI-U)
+description: US CPI for all urban consumers (monthly) from FRED.
+license: unknown
+source: https://fred.stlouisfed.org/series/CPIAUCSL
+repo: https://github.com/getopendata/getopendata
+tags: [macro, fred, inflation, cpi]
+owners: [alin]
+frequency: monthly
+versioning: date

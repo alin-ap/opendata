@@ -33,4 +33,4 @@ jobs:
           OPENDATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENDATA_R2_SECRET_ACCESS_KEY }}
         run: |
           VERSION=$(date -u +%Y-%m-%d)
-          python scripts/publish_official_local.py --version "$VERSION"
+          python scripts/publish_official_local.py --version "$VERSION" --ignore-failures

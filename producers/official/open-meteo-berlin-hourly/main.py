@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
 import requests
+
+from opendata.producer import publish_dataframe_from_dir
 
 URL = "https://api.open-meteo.com/v1/forecast"
 LATITUDE = 52.52
@@ -11,6 +14,8 @@ LONGITUDE = 13.41
 
 
 def main() -> None:
+    producer_dir = Path(__file__).resolve().parent
+
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
@@ -38,9 +43,8 @@ def main() -> None:
     df["latitude"] = float(LATITUDE)
     df["longitude"] = float(LONGITUDE)
 
-    out_dir = Path(__file__).resolve().parent / "out"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(out_dir / "data.parquet", index=False)
+    published = publish_dataframe_from_dir(producer_dir, df=df)
+    print(json.dumps(published.latest_pointer(), indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

@@ -135,3 +135,72 @@ class Registry:
 
         index["datasets"] = datasets
         self.save(index)
+
+    def build_from_producer_root(self, producer_root: Path) -> dict[str, Any]:
+        """(Re)build `index.json` from producer metadata + latest pointers.
+
+        This avoids races when multiple producers publish in parallel: only this
+        method writes `index.json`.
+        """
+
+        meta_paths = sorted(producer_root.glob("**/opendata.yaml"))
+        datasets: list[dict[str, Any]] = []
+
+        for meta_path in meta_paths:
+            try:
+                meta = load_metadata(meta_path)
+            except Exception:
+                continue
+
+            entry: dict[str, Any] = {
+                "id": meta.id,
+                "title": meta.title,
+                "description": meta.description,
+                "license": meta.license,
+                "source": meta.source,
+                "repo": meta.repo,
+                "readme_key": readme_key(meta.id),
+                "tags": list(meta.tags),
+                "owners": list(meta.owners),
+            }
+            if meta.frequency:
+                entry["frequency"] = meta.frequency
+            if meta.versioning:
+                entry["versioning"] = meta.versioning
+
+            # Merge latest stats if available.
+            try:
+                latest_raw = self._storage.get_bytes(f"datasets/{meta.id}/latest.json")
+            except NotFoundError:
+                datasets.append(entry)
+                continue
+
+            try:
+                latest = json.loads(latest_raw)
+            except Exception:
+                datasets.append(entry)
+                continue
+            if not isinstance(latest, dict):
+                datasets.append(entry)
+                continue
+
+            for key in [
+                "version",
+                "updated_at",
+                "row_count",
+                "data_size_bytes",
+                "data_key",
+                "schema_key",
+                "preview_key",
+                "checksum_sha256",
+                "schema_hash_sha256",
+            ]:
+                if key in latest:
+                    entry[key] = latest[key]
+
+            datasets.append(entry)
+
+        datasets.sort(key=lambda d: str(d.get("id", "")))
+        index = {"meta_version": 1, "generated_at": utc_now_iso(), "datasets": datasets}
+        self.save(index)
+        return index

@@ -9,7 +9,7 @@ import pandas as pd
 
 from .errors import NotFoundError
 from .ids import data_key, latest_key, validate_dataset_id, validate_version
-from .publish import publish_parquet_file
+from .publish import publish_dataframe
 from .storage import storage_from_env
 from .storage.base import StorageBackend
 from .versioning import default_version
@@ -111,9 +111,4 @@ def push(
 
     validate_dataset_id(dataset_id)
 
-    tmp_dir = Path(".opendata/tmp")
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    parquet_path = tmp_dir / "data.parquet"
-
-    df.to_parquet(parquet_path, index=False)
-    publish_parquet_file(storage, dataset_id=dataset_id, parquet_path=parquet_path, version=v)
+    publish_dataframe(storage, dataset_id=dataset_id, df=df, version=v)

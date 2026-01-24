@@ -12,6 +12,7 @@ def test_publish_official_workflow_exists_and_has_schedule() -> None:
     assert "schedule" in text
     assert "workflow_dispatch" in text
     assert "scripts/publish_official_local.py" in text
+    assert "--ignore-failures" in text
     assert "OPENDATA_R2_ENDPOINT_URL" in text
     assert "OPENDATA_R2_BUCKET" in text
     assert "OPENDATA_R2_ACCESS_KEY_ID" in text

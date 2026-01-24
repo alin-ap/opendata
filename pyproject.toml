@@ -20,7 +20,6 @@ dev = [
   "mypy>=1.8",
   "pytest>=7.0",
   "ruff>=0.4",
-  "types-requests",
 ]
 r2 = ["boto3>=1.34"]
 

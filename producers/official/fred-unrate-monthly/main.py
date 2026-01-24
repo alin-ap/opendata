@@ -9,26 +9,24 @@ import requests
 
 from opendata.producer import publish_dataframe_from_dir
 
-URL = "https://stooq.com/q/d/l/?s=aapl.us&i=d"
-SYMBOL = "AAPL.US"
+SERIES_ID = "UNRATE"
+URL = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={SERIES_ID}"
 
 
 def main() -> None:
     producer_dir = Path(__file__).resolve().parent
 
-    resp = requests.get(URL, timeout=30)
+    resp = requests.get(URL, timeout=60)
     resp.raise_for_status()
 
     df = pd.read_csv(StringIO(resp.text))
     df.columns = [c.strip().lower() for c in df.columns]
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], utc=True)
+    date_col = "observation_date" if "observation_date" in df.columns else "date"
+    df = df.rename(columns={date_col: "date", SERIES_ID.lower(): "value"})
 
-    for c in ["open", "high", "low", "close", "volume"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    df["symbol"] = SYMBOL
+    df["date"] = pd.to_datetime(df["date"], utc=True)
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    df["series_id"] = SERIES_ID
 
     published = publish_dataframe_from_dir(producer_dir, df=df)
     print(json.dumps(published.latest_pointer(), indent=2, sort_keys=True))

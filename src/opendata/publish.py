@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -191,3 +192,123 @@ def publish_parquet_file(
         )
 
     return published
+
+
+def _table_schema_json(table: pa.Table) -> dict[str, Any]:
+    return {
+        "format": "parquet",
+        "columns": [{"name": field.name, "type": str(field.type)} for field in table.schema],
+    }
+
+
+def _table_preview_json(
+    table: pa.Table, *, dataset_id: str, version: str, preview_rows: int
+) -> dict[str, Any]:
+    if preview_rows <= 0:
+        view = table.slice(0, 0)
+    else:
+        view = table.slice(0, min(int(preview_rows), int(table.num_rows)))
+
+    rows_raw = view.to_pylist()
+    rows = [{k: _json_sanitize(v) for k, v in row.items()} for row in rows_raw]
+
+    return {
+        "dataset_id": dataset_id,
+        "version": version,
+        "generated_at": utc_now_iso(),
+        "columns": list(view.column_names),
+        "rows": rows,
+    }
+
+
+def _table_to_parquet_bytes(table: pa.Table) -> bytes:
+    sink = pa.BufferOutputStream()
+    pq.write_table(table, sink)
+    return cast(bytes, sink.getvalue().to_pybytes())
+
+
+def publish_table(
+    storage: StorageBackend,
+    *,
+    dataset_id: str,
+    table: pa.Table,
+    version: str,
+    write_latest: bool = True,
+    updated_at: Optional[str] = None,
+    preview_rows: int = 100,
+) -> PublishedVersion:
+    """Publish an Arrow table as parquet bytes.
+
+    This avoids requiring a local `data.parquet` file.
+    """
+
+    validate_dataset_id(dataset_id)
+    validate_version(version)
+
+    dk = data_key(dataset_id, version)
+    sk = schema_key(dataset_id, version)
+    pk = preview_key(dataset_id, version)
+    lk = latest_key(dataset_id)
+
+    row_count = int(table.num_rows)
+    schema_obj = _table_schema_json(table)
+    schema_bytes = _canonical_json_bytes(schema_obj)
+
+    preview_obj = _table_preview_json(
+        table, dataset_id=dataset_id, version=version, preview_rows=preview_rows
+    )
+    preview_bytes = _canonical_json_bytes(preview_obj)
+
+    parquet_bytes = _table_to_parquet_bytes(table)
+    data_size_bytes = len(parquet_bytes)
+
+    checksum_sha256 = sha256_bytes(parquet_bytes)
+    schema_hash_sha256 = sha256_bytes(schema_bytes)
+
+    storage.put_bytes(dk, parquet_bytes, content_type="application/octet-stream")
+    storage.put_bytes(sk, schema_bytes, content_type="application/json")
+    storage.put_bytes(pk, preview_bytes, content_type="application/json")
+
+    published = PublishedVersion(
+        dataset_id=dataset_id,
+        version=version,
+        updated_at=updated_at or utc_now_iso(),
+        data_key=dk,
+        schema_key=sk,
+        preview_key=pk,
+        row_count=row_count,
+        data_size_bytes=data_size_bytes,
+        checksum_sha256=checksum_sha256,
+        schema_hash_sha256=schema_hash_sha256,
+    )
+
+    if write_latest:
+        storage.put_bytes(
+            lk, _canonical_json_bytes(published.latest_pointer()), content_type="application/json"
+        )
+
+    return published
+
+
+def publish_dataframe(
+    storage: StorageBackend,
+    *,
+    dataset_id: str,
+    df: pd.DataFrame,
+    version: str,
+    write_latest: bool = True,
+    updated_at: Optional[str] = None,
+    preview_rows: int = 100,
+) -> PublishedVersion:
+    """Publish a pandas DataFrame without writing a parquet file."""
+
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    return publish_table(
+        storage,
+        dataset_id=dataset_id,
+        table=table,
+        version=version,
+        write_latest=write_latest,
+        updated_at=updated_at,
+        preview_rows=preview_rows,
+    )

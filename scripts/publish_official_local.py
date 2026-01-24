@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -8,7 +10,6 @@ from pathlib import Path
 from typing import Optional
 
 from opendata.metadata import load_metadata
-from opendata.publish import publish_parquet_file, upload_readme
 from opendata.registry import Registry
 from opendata.storage import storage_from_env
 
@@ -28,6 +29,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--root", default="producers/official")
     parser.add_argument("--version", default=_default_version())
     parser.add_argument("--only", action="append", default=[])
+    parser.add_argument("--ignore-failures", action="store_true")
     args = parser.parse_args(argv)
 
     storage = storage_from_env()
@@ -37,27 +39,51 @@ def main(argv: Optional[list[str]] = None) -> int:
     dirs = _producer_dirs(root)
     allow = set(args.only)
 
+    failures: list[str] = []
+    successes = 0
+
     for d in dirs:
-        meta = load_metadata(d / "opendata.yaml")
-        if allow and meta.id not in allow and d.name not in allow:
-            continue
-        print(f"[run] {meta.id} ({d})")
+        try:
+            meta = load_metadata(d / "opendata.yaml")
+            if allow and meta.id not in allow and d.name not in allow:
+                continue
+            print(f"[run] {meta.id} ({d})")
 
-        subprocess.run([sys.executable, "main.py"], cwd=str(d), check=True)
-        parquet_path = d / "out" / "data.parquet"
-        if not parquet_path.exists():
-            raise RuntimeError(f"producer did not write {parquet_path}")
+            env = dict(**os.environ)
+            env["OPENDATA_VERSION"] = str(args.version)
 
-        publish_parquet_file(
-            storage, dataset_id=meta.id, parquet_path=parquet_path, version=args.version
-        )
+            # Ensure all producers write into the same local storage directory.
+            if env.get("OPENDATA_STORAGE", "").strip().lower() in {"local", "file"}:
+                base = Path(env.get("OPENDATA_LOCAL_STORAGE_DIR", ".opendata/storage")).resolve()
+                env["OPENDATA_LOCAL_STORAGE_DIR"] = str(base)
 
-        readme_path = d / "README.md"
-        if readme_path.exists():
-            upload_readme(storage, dataset_id=meta.id, readme_path=readme_path)
+            subprocess.run([sys.executable, "main.py"], cwd=str(d), env=env, check=True)
 
-        reg.register(meta)
-        reg.refresh_stats(meta.id)
+            # Ensure the producer actually published the requested version.
+            latest_raw = storage.get_bytes(f"datasets/{meta.id}/latest.json")
+            latest = json.loads(latest_raw)
+            if not isinstance(latest, dict) or latest.get("version") != str(args.version):
+                raise RuntimeError("producer did not publish expected version")
+
+            successes += 1
+        except Exception as e:  # noqa: BLE001
+            failures.append(f"{d.name}: {e}")
+            print(f"[error] {d}: {e}")
+            if not args.ignore_failures:
+                raise
+
+    # Build/refresh the global registry index after producers run.
+    reg.build_from_producer_root(root)
+
+    if failures:
+        print("failures:")
+        for f in failures:
+            print(f"- {f}")
+        if successes == 0:
+            print("no datasets published; failing run")
+            return 1
+        if not args.ignore_failures:
+            return 1
 
     print("done")
     return 0

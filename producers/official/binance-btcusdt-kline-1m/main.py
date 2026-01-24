@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Any, Optional
 
 import pandas as pd
 import requests
+
+from opendata.producer import publish_dataframe_from_dir
 
 BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 SYMBOL = "BTCUSDT"
@@ -114,15 +117,16 @@ def to_dataframe(rows: list[list[Any]]) -> pd.DataFrame:
 
 
 def main() -> None:
+    producer_dir = Path(__file__).resolve().parent
+
     now_ms = _floor_to_minute_ms(_utc_now_ms())
     start_ms = now_ms - 24 * 60 * 60 * 1000
 
     rows = fetch_klines(start_ms=start_ms, end_ms=now_ms)
     df = to_dataframe(rows)
 
-    out_dir = Path(__file__).resolve().parent / "out"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(out_dir / "data.parquet", index=False)
+    published = publish_dataframe_from_dir(producer_dir, df=df)
+    print(json.dumps(published.latest_pointer(), indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

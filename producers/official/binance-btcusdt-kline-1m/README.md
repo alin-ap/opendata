@@ -3,7 +3,7 @@
 Source: Binance Spot API `GET /api/v3/klines`.
 
 This producer fetches a rolling window of the last ~24 hours of 1-minute candles for `BTCUSDT`
-and writes them to `out/data.parquet`.
+and publishes them to R2 as Parquet.
 
 Notes:
 

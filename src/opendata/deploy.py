@@ -32,13 +32,9 @@ def render_github_actions_workflow(*, dataset_id: str, cron: str, python_version
         "      - name: Install dependencies\n"
         "        run: |\n"
         "          python -m pip install -U pip\n"
-        "          python -m pip install 'opendata[r2]' pandas pyarrow\n"
+        "          python -m pip install 'opendata[r2]'\n"
         "\n"
-        "      - name: Run producer\n"
-        "        run: |\n"
-        "          python main.py\n"
-        "\n"
-        "      - name: Publish dataset\n"
+        "      - name: Run producer (publishes to R2)\n"
         "        env:\n"
         "          OPENDATA_STORAGE: r2\n"
         "          OPENDATA_R2_ENDPOINT_URL: ${{ secrets.OPENDATA_R2_ENDPOINT_URL }}\n"
@@ -46,8 +42,8 @@ def render_github_actions_workflow(*, dataset_id: str, cron: str, python_version
         "          OPENDATA_R2_ACCESS_KEY_ID: ${{ secrets.OPENDATA_R2_ACCESS_KEY_ID }}\n"
         "          OPENDATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENDATA_R2_SECRET_ACCESS_KEY }}\n"
         "        run: |\n"
-        "          VERSION=$(date -u +%Y-%m-%d)\n"
-        f'          od push {dataset_id} out/data.parquet --version "$VERSION"\n'
+        "          export OPENDATA_VERSION=$(date -u +%Y-%m-%d)\n"
+        "          python main.py\n"
     )
 
 
