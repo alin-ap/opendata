@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenData</title>
+    <meta name="description" content="A minimal, auditable data registry backed by GitHub + R2." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+
+    <header class="top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">OD</div>
+        <div class="brand-text">
+          <h1>OpenData</h1>
+          <p class="tagline">A tiny, auditable registry. Data lives in R2.</p>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button id="config-btn" class="btn" type="button">Set Index URL</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="list-view" class="panel">
+        <div class="controls">
+          <label class="search">
+            <span class="sr-only">Search</span>
+            <input id="search" type="search" placeholder="Search datasets…" autocomplete="off" />
+          </label>
+          <div class="meta">
+            <span id="source" class="pill">Index URL: <span id="index-url">(not set)</span></span>
+          </div>
+        </div>
+
+        <div id="dataset-list" class="grid" aria-live="polite"></div>
+      </section>
+
+      <section id="detail-view" class="panel hidden">
+        <div class="detail-top">
+          <button id="back" class="btn btn-ghost" type="button">Back</button>
+          <div class="detail-head">
+            <h2 id="detail-title">Dataset</h2>
+            <div class="detail-sub">
+              <span id="detail-id" class="mono"></span>
+              <a id="detail-repo" class="link" href="#" target="_blank" rel="noreferrer">View on GitHub</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div class="card">
+            <h3>Quick Start</h3>
+            <pre class="code"><code id="detail-snippet">od load ...</code></pre>
+            <div class="row">
+              <button id="copy-snippet" class="btn btn-small" type="button">Copy</button>
+              <a id="detail-data" class="btn btn-small btn-ghost" href="#" target="_blank" rel="noreferrer">Open data.parquet</a>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Stats</h3>
+            <dl class="kv" id="detail-stats"></dl>
+          </div>
+
+          <div class="card wide">
+            <h3>Preview</h3>
+            <div id="preview" class="preview"></div>
+          </div>
+
+          <div class="card wide">
+            <h3>README</h3>
+            <div id="readme" class="readme"></div>
+          </div>
+
+          <div class="card wide">
+            <h3>Schema</h3>
+            <pre class="code"><code id="schema">(loading…)</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="config" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="config-title">
+      <div class="modal-card">
+        <h2 id="config-title">Set Registry Index URL</h2>
+        <p class="muted">
+          Paste the public URL for <span class="mono">index.json</span> (for example:
+          <span class="mono">https://&lt;bucket&gt;.r2.dev/index.json</span>).
+        </p>
+
+        <label class="field">
+          <span class="label">Index URL</span>
+          <input id="config-input" type="url" placeholder="https://.../index.json" />
+        </label>
+
+        <div class="row">
+          <button id="config-save" class="btn" type="button">Save</button>
+          <button id="config-cancel" class="btn btn-ghost" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

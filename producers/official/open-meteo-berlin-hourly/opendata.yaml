@@ -1,0 +1,11 @@
+meta_version: 1
+id: official/open-meteo-berlin-hourly
+title: Open-Meteo Berlin Hourly
+description: Hourly weather observations/forecast for Berlin (rolling past 7 days).
+license: unknown
+source: https://open-meteo.com/
+repo: https://github.com/getopendata/getopendata
+tags: [weather, open-meteo, berlin]
+owners: [alin]
+frequency: daily
+versioning: date

@@ -1,0 +1,36 @@
+name: publish_official
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *" # daily UTC
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install -U pip
+          pip install -e ".[r2]"
+
+      - name: Publish official datasets to R2
+        env:
+          OPENDATA_STORAGE: r2
+          OPENDATA_R2_ENDPOINT_URL: ${{ secrets.OPENDATA_R2_ENDPOINT_URL }}
+          OPENDATA_R2_BUCKET: ${{ secrets.OPENDATA_R2_BUCKET }}
+          OPENDATA_R2_ACCESS_KEY_ID: ${{ secrets.OPENDATA_R2_ACCESS_KEY_ID }}
+          OPENDATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENDATA_R2_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION=$(date -u +%Y-%m-%d)
+          python scripts/publish_official_local.py --version "$VERSION"
