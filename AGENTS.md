@@ -1,159 +1,146 @@
-# Agent Guide (getopendata)
+# Agent Guide（getopendata）
+当前状态：working MVP（Python SDK/CLI + producers + 静态 portal）。
+- 文档：`opendata.md`（架构/决策）、`TODO.md`（backlog）、`schemas/*.md`（合同/Schema）
 
-Status: docs-first. Source of truth: `opendata.md`. Backlog: `TODO.md`.
-No code or build system is checked in yet; when bootstrapping, keep this file updated.
+## 仓库结构（高信号）
+- `src/opendata/`：Python SDK + CLI（命令 `od`）
+- `tests/`：pytest 测试
+- `producers/official/`：官方 producers（每个目录都有 `opendata.yaml`/`main.py`/`README.md`）
+- `scripts/`：编排脚本（重点 `scripts/publish_official_local.py`）
+- `portal/`：纯静态 portal（无 Node 构建链）
+- `.github/workflows/`：CI / 定时发布
 
-## Cursor/Copilot rules
-
-- No Cursor rules found (`.cursor/rules/` or `.cursorrules` not present).
-- No Copilot instructions found (`.github/copilot-instructions.md` not present).
-- If rules are added later, copy them into this section verbatim.
+## Cursor/Copilot 规则
+- 未发现 Cursor 规则（`.cursor/rules/` 或 `.cursorrules` 不存在）。
+- 未发现 Copilot 规则（`.github/copilot-instructions.md` 不存在）。
+- 如果后续添加规则，请把原文逐字复制到本节。
 
 ## Build / Lint / Test
-
-### Always do command discovery first
-
-1. Look for `Makefile`, `justfile`, `pyproject.toml`, `package.json`, `wrangler.toml`.
-2. If present, use the commands/scripts defined there (do not invent new ones).
-3. If absent (current state), use the baselines below and standardize later.
-
-### Python SDK/CLI baseline (expected: `opendata` package, `od` CLI)
+- 优先用 `pyproject.toml` 定义的工具（ruff / mypy / pytest）。
+- macOS 可能没有 `python`：用 `python3` 或 `.venv/bin/python`。
 
 ```bash
-# Setup (pick one)
-python3 -m venv .venv && source .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
-# or: uv venv && uv sync --all-extras
+# 安装
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e ".[dev]"
 
-# Optional: R2 support
-pip install -e ".[r2]"  # boto3-based S3-compatible backend
+# 可选：Cloudflare R2（S3 兼容）后端
+pip install -e ".[r2]"
 
-# Format / lint / types (pick tools and enforce via CI)
-ruff format .        # or: black .
-ruff check .         # or: python -m flake8
-mypy src             # keep mypy focused on library code
+# 格式化 / Lint / 类型
+ruff format .
+ruff format --check .
+ruff check .
+ruff check . --fix
+mypy src
 
-# Tests
+# 测试
 pytest
-pytest tests/test_ids.py
-pytest tests/test_metadata_registry.py::test_registry_register_and_refresh
-pytest -k "presign"
+pytest -q
+
+# 单测：跑单文件 / 单用例 / 关键词过滤
+pytest tests/test_ids.py -q
+pytest tests/test_publish_dataframe.py::test_publish_dataframe_writes_objects -q
+pytest -k "registry_build" -q
+
+# CLI 冒烟
+od --help
+od load official/owid-covid-global-daily --head 3
+OPENDATA_INDEX_URL="https://<bucket>.r2.dev/index.json" od load official/owid-covid-global-daily --head 3
+
+# 本地发布冒烟（写到本地 storage）
+OPENDATA_STORAGE=local .venv/bin/python scripts/publish_official_local.py --version 2026-01-24
+OPENDATA_STORAGE=local .venv/bin/python scripts/publish_official_local.py --only official/owid-covid-global-daily
+
+# Portal 本地预览
+python3 -m http.server 8000
+# 打开 http://localhost:8000/portal/index.html
 ```
 
-### JS/TS baseline (Workers / Portal)
+环境变量（SDK + scripts 共用）
+- `OPENDATA_STORAGE`：`local|r2|http`（默认 `local`）
+- `OPENDATA_LOCAL_STORAGE_DIR`：默认 `.opendata/storage`
+- `OPENDATA_HTTP_BASE_URL`：`HttpStorage` 的 base URL（例 `https://<bucket>.r2.dev/`）
+- `OPENDATA_INDEX_URL`：若设置且未显式设置 `OPENDATA_STORAGE`，则自动启用 HTTP storage
+- Producer 运行期：`OPENDATA_VERSION`、`OPENDATA_PREVIEW_ROWS`
 
-```bash
-npm ci
-npm run build
-npm run lint
-npm run format
-npm test
+## Producers（数据生产者）
+- 位置：`producers/official/<slug>/`。
+- 每个 producer 必须包含：`opendata.yaml`、`main.py`、`README.md`。
+- `opendata.yaml` 的 `id`（dataset id）属于公共 API；必须合法且唯一。
+- producer 运行期版本：优先读 `OPENDATA_VERSION`（Actions/脚本会设置）。
+- 推荐发布方式（不要手写 key）：
+  - `from opendata.producer import publish_dataframe_from_dir`
+  - `publish_dataframe_from_dir(Path(__file__).resolve().parent, df=df)`
+- 预览行数：可用 `OPENDATA_PREVIEW_ROWS` 或函数参数覆盖。
+- 编排脚本：`scripts/publish_official_local.py` 会逐个运行 producer，并在最后 rebuild `index.json`。
+- 脚本支持 `--ignore-failures`：允许部分 producer 失败但整体流程继续（用于 CI 稳定性）。
 
-# Single test (depends on runner; check package.json)
-npx vitest run path/to/test.ts -t "case name"
-npx jest path/to/test.ts -t "case name"
+## Storage / Registry
+- StorageBackend 由 `src/opendata/storage/storage_from_env()` 决定（local/r2/http）。
+- 设置 `OPENDATA_INDEX_URL` 且未设置 `OPENDATA_STORAGE` 时会自动使用 HTTP storage（用于公开 bucket 读取）。
+- `index.json` 是全局 registry；避免并发/增量写导致竞态，优先“全部 producer 结束后一次性重建”。
+- 任何对象 key 都应来自 `src/opendata/ids.py`（可审计、可预测、可测试）。
 
-# Workers dev (if using Wrangler)
-npx wrangler dev
-```
+## 代码风格 / 约定
+通用原则
+- 目标：可审计、可复现；优先“简单、无惊喜”的实现。
+- 绝不提交 secrets；`.env` 已被忽略（用 `.env.example` 作为模板）。
+- 公开接口要稳定：dataset id、对象 key 布局、`od` CLI flags。
+- 默认使用 ASCII；本仓库文档/注释允许中文（请尽量用中文写注释/文档）。
+- 请称呼我为 Alin。
 
-## Code style
+格式化 / Import
+- 统一用 `ruff format`；`line-length=100`（见 `pyproject.toml`）。
+- imports 顺序：stdlib -> third-party -> first-party（`opendata`）；禁止 `from x import *`。
+- `src/opendata/__init__.py` 保持轻量，避免 import 时加载重依赖。
 
-### General principles
+类型系统（Python 3.9+）
+- 每个函数都要标注类型（mypy: `disallow_untyped_defs=true`）。
+- 避免 `Any`；优先 `object` + narrowing / `TypedDict` / `dataclass`。
+- Python 3.9 不支持 PEP604（`T | U`），请用 `Optional[T]` / `Union[T, U]`。
 
-- Optimize for auditability and reproducibility; prefer simple, boring code.
-- Do not commit secrets; prefer short-lived credentials (pre-signed URLs, OIDC minting).
-- Keep public interfaces stable: dataset IDs, `od.load()`, version semantics.
-- Default to ASCII unless a file already uses non-ASCII.
-- 尽量用中文来注释和写文档
-- 请称呼我为Alin
+命名
+- 函数/变量：`snake_case`；类：`PascalCase`。
+- 变量名尽量“显式”：`dataset_id`、`version`、`data_key`、`schema_hash_sha256`。
+- dataset id 属于 public API；必须用 `opendata.ids.validate_dataset_id()` 校验。
 
-### Repo layout (when code is added)
-
-- Prefer a clear split by component (e.g. `python/`, `workers/`, `web/`), each with its own config.
-- Keep generated artifacts out of git (`dist/`, `.venv/`, `node_modules/`, `__pycache__/`).
-
-### Naming & conventions
-
-- Dataset ID: `namespace/name` (lowercase, `-` allowed, no spaces).
-- Versioning: pick one convention per dataset (date, semver) and document it in metadata.
-- Prefer explicit names: `dataset_id`, `r2_key_prefix`, `presigned_url`, `last_updated_at`.
-
-### Data publishing conventions
-
-- R2 keys must be predictable and versioned; avoid renames after publishing.
-- Recommended object layout:
+Dataset contract / 对象 key
+- 永远不要手写 key；用 `src/opendata/ids.py` 里的 helper。
+- 稳定对象布局：
   - `datasets/<namespace>/<name>/<version>/data.parquet`
   - `datasets/<namespace>/<name>/<version>/schema.json`
+  - `datasets/<namespace>/<name>/<version>/preview.json`
   - `datasets/<namespace>/<name>/latest.json`
-- Publish minimal stats with each version: row count, schema hash, min/max date (if applicable), checksum.
+  - `datasets/<namespace>/<name>/README.md`
 
-### Registry / signing conventions (when implemented)
+CLI / 公共接口
+- CLI 入口：`src/opendata/cli.py`，命令名 `od`（见 `pyproject.toml`）。
+- CLI 报错：库抛 `OpendataError`，CLI 捕获后退出码为 2，并打印简洁错误信息。
+- 任何会影响公开行为的改动（dataset id 规则、key 布局、flag 语义）都要非常谨慎。
 
-- Validate dataset identifiers server-side. Recommended regexes:
-  - dataset id: `^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$`
-  - version: `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` (no slashes)
-- Never accept raw R2 keys/paths from clients; resolve `dataset_id + version` to a known key, then sign that.
-- Pre-signed URLs: keep expiries short (5-15 min); do not log full signed URLs; avoid open redirects.
-- For uploads, prefer PUT to a versioned key; update `latest.json` as a separate, explicit step.
+错误处理
+- 库代码统一抛 `OpendataError` 子类（见 `src/opendata/errors.py`）。
+- 错误信息包含上下文（`dataset_id`/`version`/`url`），但不要包含 secrets/签名。
+- 捕获尽量窄；需要包装时用 `raise ... from e`。
 
-### Logging / observability
+安全
+- 不要提交任何密钥/凭证；`.env` 只用于本地开发（已被 gitignore）。
+- 不要在日志中输出签名 URL、Authorization header、Access Key。
+- 读取远程数据/JSON 时按“不可信输入”处理（长度、类型、字段存在性）。
 
-- Prefer structured logging with stable keys (`dataset_id`, `version`, `request_id`).
-- Redact tokens, API keys, and signatures; avoid logging request headers by default.
-- Emit enough context to debug CI failures without leaking secrets.
+网络 / I/O / 测试
+- 所有 HTTP（`requests`）必须设置 timeout；大文件用 streaming。
+- 单元测试默认不得访问网络；需要集成测试时请新增显式标记。
+- 测试优先用 `tmp_path` + `LocalStorage`，避免依赖真实 bucket。
 
-### Performance / caching
+Git / CI
+- 保持工作区干净：不要提交 `.opendata/`、`.venv/`、`*.egg-info/`、缓存目录。
+- GitHub Actions 里尽量避免单点失败导致全绿变红：producer 批处理可容错，但要明确记录失败。
+- 依赖尽量少且稳定；核心 SDK 避免引入重依赖（`__init__.py` 不要触发重 import）。
 
-- Prefer local caching for downloads (e.g. `~/.cache/opendata/`) with optional checksum validation.
-- Precompute preview/stats during publish so portal/worker paths stay fast.
-
-### Dependency policy
-
-- Minimize dependencies in the core SDK; prefer stdlib over heavy frameworks.
-- Pin versions for reproducibility; avoid floating git deps and unpinned GitHub Actions.
-
-### Python
-
-- Target Python 3.9+ (can raise once CI/tooling is standardized).
-- Type hints on all public APIs; prefer `from __future__ import annotations`.
-- Prefer `pathlib.Path`; avoid new `os.path` usage.
-- Use `dataclasses` for simple records; adopt `pydantic` only for validation/schema evolution needs.
-- Imports: stdlib -> third-party -> local; no wildcard imports; keep `__init__.py` light.
-- Errors:
-  - Define `OpendataError` as the base exception plus narrow domain subclasses.
-  - Include context (`dataset_id`, `version`, host) but never secrets/tokens.
-  - Avoid bare `except:`; catch specific exceptions and re-raise with context.
-- Networking and I/O:
-  - Always set timeouts.
-  - Add retries with exponential backoff for idempotent operations.
-  - Stream large Parquet uploads/downloads; avoid loading entire files into memory.
-
-### TypeScript / Cloudflare Workers
-
-- Use TypeScript with `strict`; avoid `any` (use `unknown` + narrowing).
-- Workers runtime: do not use Node-only APIs; use Web APIs (`fetch`, `crypto.subtle`, Streams).
-- Treat `env` and request params as untrusted; validate before access/signing.
-- API keys: use constant-time compare; never log raw keys.
-
-### GitHub Actions / CI (when added)
-
-- Use least-privilege permissions; prefer `permissions: {contents: read}` by default.
-- Pin action versions; avoid unpinned `@master`.
-- Avoid printing secrets; scrub logs; do not echo signed URLs.
-- Prefer OIDC to mint short-lived upload credentials over long-lived R2 keys.
-
-### Formatting
-
-- Use formatters; do not hand-format to satisfy lint.
-- Prefer ruff/black (Python) and prettier (TS). Keep line length consistent (Python 88/100).
-
-### Testing
-
-- Unit tests should not hit the network; mock HTTP by default.
-- Keep integration tests behind an explicit marker/flag (e.g. `pytest -m integration`).
-- Security-sensitive areas (signing/auth): test invalid inputs, expiry handling, path traversal prevention.
-
-### Docs
-
-- `opendata.md` is the architecture source of truth; update it when decisions change.
-- `TODO.md` is the backlog; keep it current when milestones move.
+Portal / 文档
+- `portal/` 是纯静态目录（无 npm）；JS 不引入依赖；解析远程 JSON 时防御性处理。
+- 架构/合同变更同步更新：`opendata.md`、`schemas/*.md`；里程碑变更同步更新 `TODO.md`。
