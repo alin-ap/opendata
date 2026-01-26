@@ -1,11 +1,16 @@
-meta_version: 1
+meta_version: 2
 id: official/coingecko-eth-usd-market-daily
 title: CoinGecko ETH Market (Daily)
 description: Daily ETH market price/market cap/volume in USD from CoinGecko (last 365 days).
 license: unknown
-source: https://www.coingecko.com/en/api/documentation
 repo: https://github.com/getopendata/getopendata
-tags: [crypto, coingecko, eth, usd]
+
+source:
+  provider: coingecko
+  homepage: https://www.coingecko.com/
+  dataset: https://www.coingecko.com/en/api/documentation
+
+topics: [crypto, market, eth, usd]
 owners: [alin]
 frequency: daily
 versioning: date

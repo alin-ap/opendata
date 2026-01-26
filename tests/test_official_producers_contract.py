@@ -20,6 +20,6 @@ def test_official_producers_have_required_files_and_unique_ids() -> None:
         assert readme_path.exists(), f"missing {readme_path}"
 
         meta = load_metadata(meta_path)
-        assert meta.meta_version == 1
+        assert meta.meta_version == 2
         assert meta.id not in ids, f"duplicate dataset id: {meta.id}"
         ids.add(meta.id)

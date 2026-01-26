@@ -89,18 +89,60 @@ od deploy  # 自动生成/更新 GitHub Actions、配置发布流程
 
 ### 3.2 元数据：`opendata.yaml`（静态 Source of Truth）
 
-* 带 `meta_version: 1`，确保可演进
-* 最小字段：
+目标：让数据集“可被发现、可被审计、可被复用”。`opendata.yaml` 是 producer repo 的静态 Source of Truth。
 
-  * `id`：dataset_id
-  * `title` / `description`
-  * `license`：优先 SPDX
-  * `source`：数据来源说明/链接
-  * `repo`：GitHub URL（可验证性的锚点）
-  * `tags`（可选）
-  * `owners`（可选）
-  * `frequency`：daily/hourly/adhoc（可选）
-  * `versioning`：date/semver 等（可选）
+meta_version: 2（结构化元数据）。
+
+必填字段：
+
+* `meta_version`: 2
+* `id`: dataset_id（`namespace/name`）
+* `title` / `description`
+* `license`: 优先 SPDX（例如 `MIT`, `Apache-2.0`）
+* `repo`: producer GitHub URL（可验证性的锚点）
+* `source`: mapping
+
+  * `provider`: 数据来源标识（例如 `us_treasury`, `fred`, `binance`）
+  * `homepage`: 可选，机构/站点主页 URL
+  * `dataset`: 可选，具体数据页/API 文档/下载链接
+
+推荐字段：
+
+* `topics`: string[]（主题/标签；可逐步收敛成受控词表）
+* `geo`: mapping
+
+  * `scope`: `global|region|country|multi`
+  * `countries`: 可选，ISO 3166-1 alpha-2
+  * `regions`: 可选（UN M49 / 自定义枚举）
+
+* `owners`: string[]（维护者）
+* `frequency`: string（例如 `daily`/`hourly`/`monthly`/`adhoc`）
+* `versioning`: string（例如 `date`/`semver`）
+
+示例：
+
+```yaml
+meta_version: 2
+id: official/treasury-yield-curve-daily
+title: US Treasury Yield Curve (Daily)
+description: Daily yield curve rates published by the U.S. Treasury.
+license: Public Domain
+repo: https://github.com/<org>/<repo>
+
+source:
+  provider: us_treasury
+  homepage: https://home.treasury.gov/
+  dataset: https://home.treasury.gov/resource-center/data-chart-center/interest-rates
+
+topics: [rates, macro]
+geo:
+  scope: country
+  countries: [US]
+owners: [<github_handle>]
+frequency: daily
+versioning: date
+```
+
 
 ---
 
@@ -149,47 +191,53 @@ export default {
 
 ### Milestone 0：样板工程 + 最小规范（1–2 天）
 
-* 输出：dataset_id 规则、元数据 schema（meta_version:1）、R2 key layout、官方 3–5 个数据集清单
-* 验收：一份“生产者 repo 最小示例”让人看懂如何接入
+- [x] 输出：dataset_id 规则、元数据 schema（meta_version:2）、R2 key layout、官方 3–5 个数据集清单
+- [x] 验收：一份“生产者 repo 最小示例”让人看懂如何接入
 
 ### Milestone 1：SDK 核心 I/O（3–7 天）
 
-* `od.load()`：支持 `start/end/columns` 等参数；如果数据集提供 `manifest.json` + 时间分片，则只下载覆盖区间的分片（pandas/polars 先选一个）
-* `od.push()`：DataFrame/文件 → Parquet → 上传 R2
-* 基础缓存：避免重复下载
-* 验收：本地 `push → load` 闭环
+- [x] `od.load()`：读取 `latest.json`，下载 `data.parquet` 并返回 DataFrame（pandas）
+- [x] `od.push()`：DataFrame/文件 → Parquet → 上传（同时写入 schema/preview/latest）
+- [x] 基础缓存：避免重复下载（本地 cache dir 下复用 parquet）
+- [x] 验收：本地 `push → load` 闭环（单测覆盖）
+- [ ] `od.load()`：支持 `start/end/columns` 等参数
+- [ ] `manifest.json` + 时间分片：按区间只下载覆盖范围的分片
 
 ### Milestone 2：Registry 最小可用（3–7 天）
 
-* `create_dataset`：注册 dataset（写入元数据）
-* `resolve_dataset`：dataset_id → R2 key（MVP 只解析最新产物）
-* `index.json` 生成（cron 或 Actions）
-* 验收：Portal/SDK 只依赖 Registry 完成“查找 → 下载”
+- [x] `index.json` registry：加载/保存/更新数据集列表
+- [x] 注册 dataset 元数据：`od registry add` / `Registry.register_from_file()`
+- [x] `index.json` 生成：从 producers root 重建并合并 `latest.json` stats
+- [x] 避免并发竞态：所有 producers 结束后一次性 rebuild `index.json`
+- [ ] Registry 服务端：鉴权、repo→dataset_id 映射、pre-signed GET/PUT
+- [ ] 验收：Portal/SDK 都只依赖 Registry 完成“查找 → 下载”（SDK 当前不读 `index.json` 做发现）
 
 ### Milestone 3：生产者接入（od init）（2–4 天）
 
-* 生成：`opendata.yaml`、`main.py` 模板、`README.md` 模板
-* 验收：新手照模板改几行就能本地运行并发布
+- [x] 生成：`opendata.yaml`、`main.py` 模板、`README.md` 模板（`od init`）
+- [x] 验收：新手照模板改几行就能本地运行并发布
 
 ### Milestone 4：一键部署（od deploy + Actions）（5–10 天）
 
-* workflow：cron + 手动触发，运行 main.py，上传到 R2
-* 推荐：走短期 pre-signed PUT，不下发永久密钥
-* 支持：self-hosted runner（重任务/固定 IP 的逃生舱）
-* 验收：fork/clone → init → deploy → 等一次 action → Portal 可见更新
+- [x] workflow：cron + 手动触发，运行 main.py，上传到 R2（`od deploy` 生成）
+- [x] 官方 producers：定时 workflow 发布到 R2
+- [ ] 推荐：走短期 pre-signed PUT，不下发永久密钥
+- [ ] 支持：self-hosted runner（重任务/固定 IP 的逃生舱）
+- [ ] 验收：fork/clone → init → deploy → 等一次 action → Portal 可见更新
 
 ### Milestone 5：Web Portal（3–7 天）
 
-* 列表页：搜索/筛选（tag/namespace/更新时间/时间覆盖范围）
-* 详情页：README 渲染 + schema + 下载示例
-* 预览：预生成 head 100 rows（preview.json/parquet）避免在线计算
-* 验收：非技术用户也能从网页复制 `od.load()` 用起来
+- [x] 列表页：搜索（关键字匹配 id/title/description/tags）
+- [ ] 列表页：筛选（tag/namespace/更新时间/时间覆盖范围）
+- [x] 详情页：README + schema + 下载示例
+- [x] 预览：预生成 head 100 rows（preview.json）避免在线计算
+- [x] 验收：非技术用户也能从网页复制 `od.load()` 用起来
 
 ### Milestone 6：鉴权/限流/商业化（后续）
 
-* API Key 档位：Free/Pro/Enterprise
-* Worker 限流：按 key、按 IP、按 namespace
-* 配额统计：下载次数、流量、失败率
+- [ ] API Key 档位：Free/Pro/Enterprise
+- [ ] Worker 限流：按 key、按 IP、按 namespace
+- [ ] 配额统计：下载次数、流量、失败率
 
 ---
 

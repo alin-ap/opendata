@@ -60,7 +60,7 @@ GitHub Actions 已内置工作流：`.github/workflows/publish_official.yml`
 
 ## 约定（Dataset Contract v1）
 
-详情见：`schemas/dataset_contract_v1.md`、`schemas/metadata_v1.md`
+详情见：`schemas/dataset_contract_v1.md`、`schemas/metadata_v2.md`
 
 推荐对象布局：
 

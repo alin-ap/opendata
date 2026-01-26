@@ -14,14 +14,16 @@ from opendata.storage.local import LocalStorage
 def test_load_metadata(tmp_path: Path) -> None:
     meta_path = tmp_path / "opendata.yaml"
     meta_path.write_text(
-        """meta_version: 1
+        """meta_version: 2
 id: official/us-stock-daily
 title: US Stock Daily
 description: Daily OHLCV bars for US stocks.
 license: MIT
-source: https://example.com/source
 repo: https://github.com/example/repo
-tags: [stocks, us]
+source:
+  provider: stooq
+  homepage: https://stooq.com/
+topics: [stocks, us]
 owners: [example]
 """,
         encoding="utf-8",
@@ -30,7 +32,7 @@ owners: [example]
     meta = load_metadata(meta_path)
     assert meta.id == "official/us-stock-daily"
     assert meta.title == "US Stock Daily"
-    assert "stocks" in meta.tags
+    assert "stocks" in meta.topics
 
 
 def test_registry_register_and_refresh(tmp_path: Path) -> None:
@@ -39,13 +41,15 @@ def test_registry_register_and_refresh(tmp_path: Path) -> None:
 
     meta_path = tmp_path / "opendata.yaml"
     meta_path.write_text(
-        """meta_version: 1
+        """meta_version: 2
 id: official/us-stock-daily
 title: US Stock Daily
 description: Daily OHLCV bars for US stocks.
 license: MIT
-source: https://example.com/source
 repo: https://github.com/example/repo
+source:
+  provider: stooq
+  homepage: https://stooq.com/
 """,
         encoding="utf-8",
     )

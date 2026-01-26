@@ -1,11 +1,16 @@
-meta_version: 1
+meta_version: 2
 id: official/coingecko-btc-usd-market-daily
 title: CoinGecko BTC Market (Daily)
 description: Daily BTC market price/market cap/volume in USD from CoinGecko (last 365 days).
 license: unknown
-source: https://www.coingecko.com/en/api/documentation
 repo: https://github.com/getopendata/getopendata
-tags: [crypto, coingecko, btc, usd]
+
+source:
+  provider: coingecko
+  homepage: https://www.coingecko.com/
+  dataset: https://www.coingecko.com/en/api/documentation
+
+topics: [crypto, market, btc, usd]
 owners: [alin]
 frequency: daily
 versioning: date

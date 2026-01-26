@@ -68,12 +68,14 @@ class Registry:
             "title": meta.title,
             "description": meta.description,
             "license": meta.license,
-            "source": meta.source,
+            "source": meta.source.to_dict(),
             "repo": meta.repo,
             "readme_key": readme_key(meta.id),
-            "tags": list(meta.tags),
+            "topics": list(meta.topics),
             "owners": list(meta.owners),
         }
+        if meta.geo:
+            entry["geo"] = meta.geo.to_dict()
         if meta.frequency:
             entry["frequency"] = meta.frequency
         if meta.versioning:
@@ -157,12 +159,14 @@ class Registry:
                 "title": meta.title,
                 "description": meta.description,
                 "license": meta.license,
-                "source": meta.source,
+                "source": meta.source.to_dict(),
                 "repo": meta.repo,
                 "readme_key": readme_key(meta.id),
-                "tags": list(meta.tags),
+                "topics": list(meta.topics),
                 "owners": list(meta.owners),
             }
+            if meta.geo:
+                entry["geo"] = meta.geo.to_dict()
             if meta.frequency:
                 entry["frequency"] = meta.frequency
             if meta.versioning:

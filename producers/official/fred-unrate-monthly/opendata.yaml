@@ -1,11 +1,19 @@
-meta_version: 1
+meta_version: 2
 id: official/fred-unrate-monthly
 title: FRED UNRATE (Unemployment Rate)
 description: US unemployment rate (monthly) from FRED.
 license: unknown
-source: https://fred.stlouisfed.org/series/UNRATE
 repo: https://github.com/getopendata/getopendata
-tags: [macro, fred, unemployment]
+
+source:
+  provider: fred
+  homepage: https://fred.stlouisfed.org/
+  dataset: https://fred.stlouisfed.org/series/UNRATE
+
+topics: [macro, labor, unemployment]
+geo:
+  scope: country
+  countries: [US]
 owners: [alin]
 frequency: monthly
 versioning: date

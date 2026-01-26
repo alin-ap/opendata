@@ -73,6 +73,7 @@ function setView(name) {
 }
 
 function renderDatasetCard(ds) {
+  const topics = ds.topics || [];
   const card = document.createElement("button");
   card.type = "button";
   card.className = "card";
@@ -82,7 +83,10 @@ function renderDatasetCard(ds) {
     <h3>${escapeHtml(ds.title || ds.id)}</h3>
     <div class="id">${escapeHtml(ds.id)}</div>
     <div class="desc">${escapeHtml(ds.description || "")}</div>
-    <div class="tags">${(ds.tags || []).slice(0, 6).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>
+    <div class="tags">${topics
+      .slice(0, 6)
+      .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
+      .join("")}</div>
   `;
   card.addEventListener("click", () => {
     window.location.hash = `#/d/${encodeURIComponent(ds.id)}`;
@@ -279,7 +283,7 @@ function renderList(state) {
 
   const filtered = (state.datasets || []).filter((d) => {
     if (!q) return true;
-    const blob = `${d.id} ${d.title || ""} ${d.description || ""} ${(d.tags || []).join(" ")}`.toLowerCase();
+    const blob = `${d.id} ${d.title || ""} ${d.description || ""} ${(d.topics || []).join(" ")}`.toLowerCase();
     return blob.includes(q);
   });
 

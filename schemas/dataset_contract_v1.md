@@ -134,7 +134,7 @@ The registry index is a single searchable list.
 
 An official producer lives at `producers/official/<slug>/` and must contain:
 
-- `opendata.yaml` (metadata, `meta_version: 1`)
+- `opendata.yaml` (metadata, `meta_version: 2`)
 - `README.md`
 - `main.py`
 

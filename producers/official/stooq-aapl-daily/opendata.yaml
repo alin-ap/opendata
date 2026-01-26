@@ -1,11 +1,19 @@
-meta_version: 1
+meta_version: 2
 id: official/stooq-aapl-daily
 title: Stooq AAPL Daily
 description: Daily OHLCV history for AAPL.US from Stooq (CSV).
 license: unknown
-source: https://stooq.com/q/d/l/?s=aapl.us&i=d
 repo: https://github.com/getopendata/getopendata
-tags: [stocks, us, ohlcv, stooq]
+
+source:
+  provider: stooq
+  homepage: https://stooq.com/
+  dataset: https://stooq.com/q/d/l/?s=aapl.us&i=d
+
+topics: [stocks, ohlcv]
+geo:
+  scope: country
+  countries: [US]
 owners: [alin]
 frequency: daily
 versioning: date

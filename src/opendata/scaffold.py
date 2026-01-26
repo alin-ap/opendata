@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .metadata import DatasetMetadata, save_metadata
+from .metadata import DatasetMetadata, SourceInfo, save_metadata
 
 
 def init_dataset_repo(*, dataset_id: str, directory: Path) -> None:
@@ -13,14 +13,14 @@ def init_dataset_repo(*, dataset_id: str, directory: Path) -> None:
     meta_path = directory / "opendata.yaml"
     if not meta_path.exists():
         meta = DatasetMetadata(
-            meta_version=1,
+            meta_version=2,
             id=dataset_id,
             title="TODO: dataset title",
             description="TODO: dataset description",
             license="TODO: SPDX license",
-            source="TODO: data source URL",
             repo="TODO: GitHub repo URL",
-            tags=[],
+            source=SourceInfo(provider="TODO: provider", homepage="TODO: homepage URL"),
+            topics=[],
             owners=[],
         )
         save_metadata(meta_path, meta)

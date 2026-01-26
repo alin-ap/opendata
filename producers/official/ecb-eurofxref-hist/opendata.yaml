@@ -1,11 +1,16 @@
-meta_version: 1
+meta_version: 2
 id: official/ecb-eurofxref-hist
 title: ECB Euro FX Reference Rates (History)
 description: Historical ECB reference exchange rates (EUR base) as a long table.
 license: unknown
-source: https://www.ecb.europa.eu/stats/eurofxref/
 repo: https://github.com/getopendata/getopendata
-tags: [fx, ecb, eur]
+
+source:
+  provider: ecb
+  homepage: https://www.ecb.europa.eu/
+  dataset: https://www.ecb.europa.eu/stats/eurofxref/
+
+topics: [fx, eur, macro]
 owners: [alin]
 frequency: daily
 versioning: date

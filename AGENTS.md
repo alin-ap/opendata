@@ -1,23 +1,76 @@
-# Agent Guide（getopendata）
-当前状态：working MVP（Python SDK/CLI + producers + 静态 portal）。
-- 文档：`opendata.md`（架构/决策）、`TODO.md`（backlog）、`schemas/*.md`（合同/Schema）
+# Repository Guidelines (getopendata)
 
-## 仓库结构（高信号）
-- `src/opendata/`：Python SDK + CLI（命令 `od`）
-- `tests/`：pytest 测试
-- `producers/official/`：官方 producers（每个目录都有 `opendata.yaml`/`main.py`/`README.md`）
-- `scripts/`：编排脚本（重点 `scripts/publish_official_local.py`）
-- `portal/`：纯静态 portal（无 Node 构建链）
-- `.github/workflows/`：CI / 定时发布
+感谢尊敬的 AI 大人帮我写代码，我的名字是：Alin.Expects(Strict_Compliance, Elegant_Code)。
+
+当前状态：working MVP（Python SDK/CLI + producers + 静态 portal）。
+
+## Strict_Compliance (严格遵从)
+
+- **零废话**：只输出必要的代码/命令/极简解释；禁止客套话或道德说教。
+- **事实为本**：以 repo 代码、测试、可复现步骤为准；不确定先查（Read/Grep/跑测试），不要猜。
+- **深度分析**：立足第一性原理拆解问题，优先用最小可验证的方式快速验证。
+- **变更可审计**：任何影响 public API 的改动（dataset_id、key layout、CLI flags）必须显式说明。
+- **反思记录**：出现失误（误改文件/偏离需求/漏跑工具）需记录到本文末尾，写清原因与避免复发的做法。
+
+## Elegant_Code (优雅代码)
+
+KISS 原则：崇尚简洁。不要过度设计模式。不要过度抽象。不要过度防御设计。
+
+- 目标：可审计、可复现；优先“简单、无惊喜”的实现。
+- 依赖克制：SDK 核心尽量不引入重依赖；`src/opendata/__init__.py` 保持轻量。
+- 类型系统：mypy 严格（`disallow_untyped_defs=true`）；Python 3.9+；避免 `Any`。
+- 兼容性：Python 3.9 不支持 PEP604（`T | U`），用 `Optional[T]` / `Union[T, U]`。
+
+## 项目结构
+
+```
+src/opendata/            # Python SDK + CLI（命令 od）
+src/opendata/storage/    # StorageBackend: local / r2 / http
+tests/                   # pytest 单测
+producers/official/      # 官方 producers（每个目录都有 opendata.yaml/main.py/README.md）
+scripts/                 # 编排脚本（重点 scripts/publish_official_local.py）
+portal/                  # 纯静态 portal（无 Node 构建链）
+schemas/                 # 合同/Schema 文档
+.github/workflows/       # CI / 定时发布
+```
+
+文档（高信号）：
+
+- `README.md`
+- `opendata_todo.md`（规划/里程碑）
+- `schemas/dataset_contract_v1.md`
+- `schemas/metadata_v2.md`
 
 ## Cursor/Copilot 规则
+
 - 未发现 Cursor 规则（`.cursor/rules/` 或 `.cursorrules` 不存在）。
 - 未发现 Copilot 规则（`.github/copilot-instructions.md` 不存在）。
 - 如果后续添加规则，请把原文逐字复制到本节。
 
-## Build / Lint / Test
-- 优先用 `pyproject.toml` 定义的工具（ruff / mypy / pytest）。
-- macOS 可能没有 `python`：用 `python3` 或 `.venv/bin/python`。
+## 配置与环境
+
+- Python: `>=3.9`（见 `pyproject.toml`）
+- 虚拟环境：建议使用 `.venv/`；macOS 可能没有 `python`，用 `python3` 或 `.venv/bin/python`。
+- 本地 storage 默认目录：`.opendata/storage/`（不要提交到 git）
+- 本地 cache 默认目录：`~/.cache/opendata/`（可用 `OPENDATA_CACHE_DIR` 覆盖）
+
+## 环境变量（SDK + scripts 共用）
+
+- `OPENDATA_STORAGE`：`local|r2|http`（默认 `local`）
+- `OPENDATA_LOCAL_STORAGE_DIR`：默认 `.opendata/storage`
+- `OPENDATA_HTTP_BASE_URL`：`HttpStorage` 的 base URL（例 `https://<bucket>.r2.dev/`）
+- `OPENDATA_INDEX_URL`：若设置且未显式设置 `OPENDATA_STORAGE`，则自动启用 HTTP storage
+- Producer 运行期：`OPENDATA_VERSION`、`OPENDATA_PREVIEW_ROWS`
+
+R2（S3 兼容）环境变量：
+
+- `OPENDATA_R2_ENDPOINT_URL`
+- `OPENDATA_R2_BUCKET`
+- `OPENDATA_R2_ACCESS_KEY_ID`
+- `OPENDATA_R2_SECRET_ACCESS_KEY`
+- `OPENDATA_R2_REGION`（可选，默认 `auto`）
+
+## 常用命令
 
 ```bash
 # 安装
@@ -59,88 +112,52 @@ python3 -m http.server 8000
 # 打开 http://localhost:8000/portal/index.html
 ```
 
-环境变量（SDK + scripts 共用）
-- `OPENDATA_STORAGE`：`local|r2|http`（默认 `local`）
-- `OPENDATA_LOCAL_STORAGE_DIR`：默认 `.opendata/storage`
-- `OPENDATA_HTTP_BASE_URL`：`HttpStorage` 的 base URL（例 `https://<bucket>.r2.dev/`）
-- `OPENDATA_INDEX_URL`：若设置且未显式设置 `OPENDATA_STORAGE`，则自动启用 HTTP storage
-- Producer 运行期：`OPENDATA_VERSION`、`OPENDATA_PREVIEW_ROWS`
+## 代码风格
 
-## Producers（数据生产者）
-- 位置：`producers/official/<slug>/`。
-- 每个 producer 必须包含：`opendata.yaml`、`main.py`、`README.md`。
-- `opendata.yaml` 的 `id`（dataset id）属于公共 API；必须合法且唯一。
-- producer 运行期版本：优先读 `OPENDATA_VERSION`（Actions/脚本会设置）。
-- 推荐发布方式（不要手写 key）：
-  - `from opendata.producer import publish_dataframe_from_dir`
-  - `publish_dataframe_from_dir(Path(__file__).resolve().parent, df=df)`
-- 预览行数：可用 `OPENDATA_PREVIEW_ROWS` 或函数参数覆盖。
-- 编排脚本：`scripts/publish_official_local.py` 会逐个运行 producer，并在最后 rebuild `index.json`。
-- 脚本支持 `--ignore-failures`：允许部分 producer 失败但整体流程继续（用于 CI 稳定性）。
-
-## Storage / Registry
-- StorageBackend 由 `src/opendata/storage/storage_from_env()` 决定（local/r2/http）。
-- 设置 `OPENDATA_INDEX_URL` 且未设置 `OPENDATA_STORAGE` 时会自动使用 HTTP storage（用于公开 bucket 读取）。
-- `index.json` 是全局 registry；避免并发/增量写导致竞态，优先“全部 producer 结束后一次性重建”。
-- 任何对象 key 都应来自 `src/opendata/ids.py`（可审计、可预测、可测试）。
-
-## 代码风格 / 约定
-通用原则
-- 目标：可审计、可复现；优先“简单、无惊喜”的实现。
-- 绝不提交 secrets；`.env` 已被忽略（用 `.env.example` 作为模板）。
-- 公开接口要稳定：dataset id、对象 key 布局、`od` CLI flags。
-- 默认使用 ASCII；本仓库文档/注释允许中文（请尽量用中文写注释/文档）。
-- 请称呼我为 Alin。
-
-格式化 / Import
-- 统一用 `ruff format`；`line-length=100`（见 `pyproject.toml`）。
+- 统一用 `ruff format`（`line-length=100`，见 `pyproject.toml`）。
 - imports 顺序：stdlib -> third-party -> first-party（`opendata`）；禁止 `from x import *`。
-- `src/opendata/__init__.py` 保持轻量，避免 import 时加载重依赖。
+- 类型注解：每个函数都要标注类型（mypy: `disallow_untyped_defs=true`）。
+- 错误处理：库代码统一抛 `OpendataError` 子类（见 `src/opendata/errors.py`）；CLI 捕获后退出码为 2。
 
-类型系统（Python 3.9+）
-- 每个函数都要标注类型（mypy: `disallow_untyped_defs=true`）。
-- 避免 `Any`；优先 `object` + narrowing / `TypedDict` / `dataclass`。
-- Python 3.9 不支持 PEP604（`T | U`），请用 `Optional[T]` / `Union[T, U]`。
+Dataset contract / 对象 key：
 
-命名
-- 函数/变量：`snake_case`；类：`PascalCase`。
-- 变量名尽量“显式”：`dataset_id`、`version`、`data_key`、`schema_hash_sha256`。
-- dataset id 属于 public API；必须用 `opendata.ids.validate_dataset_id()` 校验。
-
-Dataset contract / 对象 key
 - 永远不要手写 key；用 `src/opendata/ids.py` 里的 helper。
-- 稳定对象布局：
+- 稳定对象布局（v1）：
   - `datasets/<namespace>/<name>/<version>/data.parquet`
   - `datasets/<namespace>/<name>/<version>/schema.json`
   - `datasets/<namespace>/<name>/<version>/preview.json`
   - `datasets/<namespace>/<name>/latest.json`
   - `datasets/<namespace>/<name>/README.md`
 
-CLI / 公共接口
-- CLI 入口：`src/opendata/cli.py`，命令名 `od`（见 `pyproject.toml`）。
-- CLI 报错：库抛 `OpendataError`，CLI 捕获后退出码为 2，并打印简洁错误信息。
-- 任何会影响公开行为的改动（dataset id 规则、key 布局、flag 语义）都要非常谨慎。
+## 测试与数据
 
-错误处理
-- 库代码统一抛 `OpendataError` 子类（见 `src/opendata/errors.py`）。
-- 错误信息包含上下文（`dataset_id`/`version`/`url`），但不要包含 secrets/签名。
-- 捕获尽量窄；需要包装时用 `raise ... from e`。
-
-安全
-- 不要提交任何密钥/凭证；`.env` 只用于本地开发（已被 gitignore）。
-- 不要在日志中输出签名 URL、Authorization header、Access Key。
-- 读取远程数据/JSON 时按“不可信输入”处理（长度、类型、字段存在性）。
-
-网络 / I/O / 测试
-- 所有 HTTP（`requests`）必须设置 timeout；大文件用 streaming。
 - 单元测试默认不得访问网络；需要集成测试时请新增显式标记。
 - 测试优先用 `tmp_path` + `LocalStorage`，避免依赖真实 bucket。
+- 大文件/缓存目录不要提交：`.opendata/`、`.venv/`、`*.egg-info/`、`.pytest_cache/`、`.ruff_cache/`。
 
-Git / CI
-- 保持工作区干净：不要提交 `.opendata/`、`.venv/`、`*.egg-info/`、缓存目录。
-- GitHub Actions 里尽量避免单点失败导致全绿变红：producer 批处理可容错，但要明确记录失败。
-- 依赖尽量少且稳定；核心 SDK 避免引入重依赖（`__init__.py` 不要触发重 import）。
+## 行为准则 (Dos & Don'ts)
 
-Portal / 文档
-- `portal/` 是纯静态目录（无 npm）；JS 不引入依赖；解析远程 JSON 时防御性处理。
-- 架构/合同变更同步更新：`opendata.md`、`schemas/*.md`；里程碑变更同步更新 `TODO.md`。
+### Don'ts (不要)
+
+1. **不要** 手写对象 key；统一使用 `src/opendata/ids.py`。
+2. **不要** 随意改动 dataset_id/version 规则或 key layout；它们是 public API。
+3. **不要** 在单测里访问网络或真实 bucket；默认用 `LocalStorage`。
+4. **不要** 使用 `requests` 时省略 timeout；大文件下载必须 streaming。
+5. **不要** 在代码/日志/提交中输出敏感信息（`.env`、API key、Access Key、签名 URL、Authorization header）。
+6. **不要** 在 producers 运行过程中并发/增量写 `index.json`；应在批处理结束后一次性重建。
+7. **不要** 给 `portal/` 引入构建链或第三方依赖；保持 zero-build。
+8. **不要** 让 `src/opendata/__init__.py` 触发重 import 或任何 I/O。
+
+### Dos (要)
+
+1. **要** 做较大改动后至少跑一遍：`ruff format --check .`、`ruff check .`、`mypy src`、`pytest`。
+2. **要** 使用 `python3` + `.venv`；R2 相关功能需安装 `pip install -e ".[r2]"`。
+3. **要** 在 producers 中优先使用 `publish_dataframe_from_dir()`（见 `src/opendata/producer.py`）。
+4. **要** 通过 `OPENDATA_VERSION` 控制发布版本，通过 `OPENDATA_PREVIEW_ROWS` 控制 preview 行数。
+5. **要** 读取远程 JSON/README 时防御性处理（类型/长度/字段存在性），把输入当成不可信。
+6. **要** registry 由集中 rebuild 生成（`scripts/publish_official_local.py` / `Registry.build_from_producer_root()`），避免竞态。
+7. **要** 合同/公开行为变更同步更新 `schemas/*.md`，里程碑变更同步更新 `opendata_todo.md`。
+
+## 反思记录
+
+- 2026-01-25：修改 `opendata_todo.md` 时误新增了额外章节而不是按需求只改指定章节。解决：遵循最小变更原则，只修改用户明确要求的 section，避免未授权扩展文档结构。

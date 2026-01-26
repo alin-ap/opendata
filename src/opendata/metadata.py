@@ -11,11 +11,86 @@ from .ids import validate_dataset_id
 
 
 @dataclass(frozen=True)
+class SourceInfo:
+    """Structured provenance for a dataset."""
+
+    provider: str
+    homepage: Optional[str] = None
+    dataset: Optional[str] = None
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> SourceInfo:
+        def _req(key: str) -> str:
+            v = data.get(key)
+            if not isinstance(v, str) or not v.strip():
+                raise ValidationError(f"missing required field: source.{key}")
+            return v.strip()
+
+        def _opt(key: str) -> Optional[str]:
+            v = data.get(key)
+            if v is None:
+                return None
+            if not isinstance(v, str) or not v.strip():
+                raise ValidationError(f"source.{key} must be a non-empty string")
+            return v.strip()
+
+        return SourceInfo(
+            provider=_req("provider"), homepage=_opt("homepage"), dataset=_opt("dataset")
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"provider": self.provider}
+        if self.homepage:
+            out["homepage"] = self.homepage
+        if self.dataset:
+            out["dataset"] = self.dataset
+        return out
+
+
+@dataclass(frozen=True)
+class GeoInfo:
+    """Optional geographic scope for a dataset."""
+
+    scope: str
+    countries: list[str] = field(default_factory=list)
+    regions: list[str] = field(default_factory=list)
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> GeoInfo:
+        scope_raw = data.get("scope")
+        if not isinstance(scope_raw, str) or not scope_raw.strip():
+            raise ValidationError("geo.scope must be a non-empty string")
+        scope = scope_raw.strip()
+        if scope not in {"global", "region", "country", "multi"}:
+            raise ValidationError("geo.scope must be one of: global, region, country, multi")
+
+        def _list(key: str) -> list[str]:
+            raw = data.get(key, [])
+            if raw is None:
+                return []
+            if not isinstance(raw, list):
+                raise ValidationError(f"geo.{key} must be a list")
+            return [str(x) for x in raw]
+
+        return GeoInfo(scope=scope, countries=_list("countries"), regions=_list("regions"))
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"scope": self.scope}
+        if self.countries:
+            out["countries"] = list(self.countries)
+        if self.regions:
+            out["regions"] = list(self.regions)
+        return out
+
+
+@dataclass(frozen=True)
 class DatasetMetadata:
-    """Minimal dataset metadata stored alongside producer code.
+    """Dataset metadata stored alongside producer code.
 
     This is intended to be human-authored (YAML) and validated by both the SDK and
-    server-side registry.
+    registry tooling.
+
+    NOTE: meta_version 2 is the current contract.
     """
 
     meta_version: int
@@ -23,18 +98,19 @@ class DatasetMetadata:
     title: str
     description: str
     license: str
-    source: str
     repo: str
-    tags: list[str] = field(default_factory=list)
+    source: SourceInfo
+    topics: list[str] = field(default_factory=list)
     owners: list[str] = field(default_factory=list)
     frequency: Optional[str] = None
     versioning: Optional[str] = None
+    geo: Optional[GeoInfo] = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> DatasetMetadata:
         meta_version = int(data.get("meta_version", 0))
-        if meta_version != 1:
-            raise ValidationError(f"unsupported meta_version: {meta_version}; expected 1")
+        if meta_version != 2:
+            raise ValidationError(f"unsupported meta_version: {meta_version}; expected 2")
 
         dataset_id = str(data.get("id", ""))
         validate_dataset_id(dataset_id)
@@ -45,11 +121,16 @@ class DatasetMetadata:
                 raise ValidationError(f"missing required field: {key}")
             return v.strip()
 
-        tags_raw = data.get("tags", [])
-        tags = [str(x) for x in tags_raw] if isinstance(tags_raw, list) else []
+        def _list(key: str) -> list[str]:
+            raw = data.get(key, [])
+            if raw is None:
+                return []
+            if not isinstance(raw, list):
+                raise ValidationError(f"{key} must be a list")
+            return [str(x) for x in raw]
 
-        owners_raw = data.get("owners", [])
-        owners = [str(x) for x in owners_raw] if isinstance(owners_raw, list) else []
+        topics = _list("topics")
+        owners = _list("owners")
 
         frequency = data.get("frequency")
         if frequency is not None and not isinstance(frequency, str):
@@ -59,18 +140,31 @@ class DatasetMetadata:
         if versioning is not None and not isinstance(versioning, str):
             raise ValidationError("versioning must be a string")
 
+        source_raw = data.get("source")
+        if not isinstance(source_raw, dict):
+            raise ValidationError("source must be a mapping")
+        source = SourceInfo.from_dict(source_raw)
+
+        geo_raw = data.get("geo")
+        geo: Optional[GeoInfo] = None
+        if geo_raw is not None:
+            if not isinstance(geo_raw, dict):
+                raise ValidationError("geo must be a mapping")
+            geo = GeoInfo.from_dict(geo_raw)
+
         return DatasetMetadata(
             meta_version=meta_version,
             id=dataset_id,
             title=_req("title"),
             description=_req("description"),
             license=_req("license"),
-            source=_req("source"),
             repo=_req("repo"),
-            tags=tags,
+            source=source,
+            topics=topics,
             owners=owners,
             frequency=frequency,
             versioning=versioning,
+            geo=geo,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -80,17 +174,19 @@ class DatasetMetadata:
             "title": self.title,
             "description": self.description,
             "license": self.license,
-            "source": self.source,
             "repo": self.repo,
+            "source": self.source.to_dict(),
         }
-        if self.tags:
-            data["tags"] = list(self.tags)
+        if self.topics:
+            data["topics"] = list(self.topics)
         if self.owners:
             data["owners"] = list(self.owners)
         if self.frequency:
             data["frequency"] = self.frequency
         if self.versioning:
             data["versioning"] = self.versioning
+        if self.geo:
+            data["geo"] = self.geo.to_dict()
         return data
 
 

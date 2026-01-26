@@ -1,11 +1,16 @@
-meta_version: 1
+meta_version: 2
 id: official/binance-btcusdt-kline-1m
 title: Binance BTCUSDT 1m Kline
 description: One-minute OHLCV candles for BTCUSDT from Binance Spot API (rolling last 24h).
 license: unknown
-source: https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data
 repo: https://github.com/getopendata/getopendata
-tags: [crypto, binance, btc, usdt, ohlcv]
+
+source:
+  provider: binance
+  homepage: https://www.binance.com/
+  dataset: https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data
+
+topics: [crypto, ohlcv, btc, usdt]
 owners: [alin]
 frequency: daily
 versioning: date

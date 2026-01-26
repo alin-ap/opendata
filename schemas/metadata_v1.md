@@ -1,5 +1,8 @@
 # Dataset Metadata Schema (meta_version: 1)
 
+NOTE: This schema is kept for historical reference. The current producer
+metadata contract is `meta_version: 2` (see `schemas/metadata_v2.md`).
+
 This document defines the minimal, human-authored dataset metadata format used by
 producer repositories.
 

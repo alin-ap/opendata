@@ -7,13 +7,15 @@ from pathlib import Path
 
 def _write_meta(path: Path, dataset_id: str) -> None:
     path.write_text(
-        f"""meta_version: 1
+        f"""meta_version: 2
 id: {dataset_id}
 title: Test
 description: Test
 license: MIT
-source: https://example.com
 repo: https://github.com/example/repo
+source:
+  provider: test
+  homepage: https://example.com
 """,
         encoding="utf-8",
     )

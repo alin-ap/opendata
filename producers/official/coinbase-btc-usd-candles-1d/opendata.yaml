@@ -1,11 +1,16 @@
-meta_version: 1
+meta_version: 2
 id: official/coinbase-btc-usd-candles-1d
 title: Coinbase BTC-USD Candles (1d)
 description: Daily OHLCV candles for BTC-USD from Coinbase Exchange API (last 300 days).
 license: unknown
-source: https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductcandles
 repo: https://github.com/getopendata/getopendata
-tags: [crypto, coinbase, btc, usd, ohlcv]
+
+source:
+  provider: coinbase
+  homepage: https://www.coinbase.com/
+  dataset: https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductcandles
+
+topics: [crypto, ohlcv, btc, usd]
 owners: [alin]
 frequency: daily
 versioning: date
