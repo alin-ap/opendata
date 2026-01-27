@@ -1,315 +1,175 @@
 /* global window, document */
 
-const STORAGE_KEY = "opendata:index_url";
+const $ = (id) => document.getElementById(id);
 
-function $(id) {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`missing element: ${id}`);
-  return el;
-}
-
-function getIndexUrlFromQuery() {
-  const url = new URL(window.location.href);
-  const q = url.searchParams.get("index");
-  if (!q) return null;
+function deriveBaseUrl(url) {
   try {
-    return decodeURIComponent(q);
-  } catch (_) {
-    return q;
-  }
-}
-
-function deriveBaseUrl(indexUrl) {
-  try {
-    const u = new URL(indexUrl);
-    u.hash = "";
-    // Remove the last path segment (index.json).
+    const u = new URL(url);
     u.pathname = u.pathname.replace(/\/[^/]*$/, "/");
     return u.toString();
   } catch (_) {
-    // Fallback: best-effort.
-    return indexUrl.replace(/\/[^/]*$/, "/");
+    return url.replace(/\/[^/]*$/, "/");
   }
 }
 
-function fmtBytes(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x) || x <= 0) return "-";
-  const units = ["B", "KB", "MB", "GB"];
-  let v = x;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i += 1;
+const fmt = {
+  bytes: (n) => {
+    if (!Number.isFinite(n) || n <= 0) return "-";
+    const u = ["B", "KB", "MB", "GB"];
+    let v = n, i = 0;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(i ? 1 : 0)} ${u[i]}`;
+  },
+  rows: (n) => Number.isFinite(n) && n >= 0 ? n.toLocaleString() : "-",
+  date: (s) => s ? s.slice(0, 10) : "-",
+};
+
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function pad(s, len, right) {
+  s = String(s);
+  if (s.length >= len) return s.slice(0, len);
+  const sp = " ".repeat(len - s.length);
+  return right ? sp + s : s + sp;
+}
+
+function renderTable(datasets) {
+  if (!datasets.length) return "No datasets.";
+
+  const cols = [
+    { k: "id", l: "Dataset ID", w: 35 },
+    { k: "row_count", l: "Rows", w: 10, r: 1, f: fmt.rows },
+    { k: "data_size_bytes", l: "Size", w: 10, r: 1, f: fmt.bytes },
+    { k: "updated_at", l: "Updated", w: 12, f: fmt.date },
+  ];
+
+  const W = cols.reduce((s, c) => s + c.w, 0) + cols.length + 1;
+  const L = [];
+
+  L.push("." + "-".repeat(W - 2) + ".");
+  const t = "Dataset Registry";
+  const p = Math.floor((W - 2 - t.length) / 2);
+  L.push("|" + " ".repeat(p) + t + " ".repeat(W - 2 - p - t.length) + "|");
+  L.push("|" + "-".repeat(W - 2) + "|");
+  L.push("| " + cols.map(c => pad(c.l, c.w, c.r)).join(" | ") + " |");
+  L.push("|-" + cols.map(c => "-".repeat(c.w)).join("-|-") + "-|");
+
+  for (const ds of datasets) {
+    const cells = cols.map(c => pad(c.f ? c.f(ds[c.k]) : (ds[c.k] ?? "-"), c.w, c.r));
+    const link = `<a href="#/d/${encodeURIComponent(ds.id)}">${esc(cells[0].trim())}</a>`;
+    L.push("| " + link + " ".repeat(cols[0].w - cells[0].trim().length) + " | " + cells.slice(1).join(" | ") + " |");
   }
-  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+
+  L.push("'" + "-".repeat(W - 2) + "'");
+  return L.join("\n");
+}
+
+function renderPreview(p) {
+  if (!p.columns?.length) return "<span class='muted'>No preview.</span>";
+  const h = p.columns.map(c => `<th>${esc(c)}</th>`).join("");
+  const b = (p.rows || []).map(r => "<tr>" + p.columns.map(c => `<td>${esc(r[c] ?? "")}</td>`).join("") + "</tr>").join("");
+  return `<table><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table>`;
 }
 
 async function fetchJson(url) {
-  const resp = await fetch(url, { cache: "no-store" });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => "");
-    throw new Error(`fetch failed: ${resp.status} ${resp.statusText} ${txt}`);
-  }
-  return await resp.json();
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
 }
 
 async function fetchText(url) {
-  const resp = await fetch(url, { cache: "no-store" });
-  if (!resp.ok) return null;
-  return await resp.text();
+  const r = await fetch(url, { cache: "no-store" });
+  return r.ok ? r.text() : null;
 }
 
-function setView(name) {
-  const list = $("list-view");
-  const detail = $("detail-view");
-  if (name === "list") {
-    list.classList.remove("hidden");
-    detail.classList.add("hidden");
-  } else {
-    list.classList.add("hidden");
-    detail.classList.remove("hidden");
-  }
-}
+const state = { url: null, base: null, datasets: [] };
 
-function renderDatasetCard(ds) {
-  const topics = ds.topics || [];
-  const card = document.createElement("button");
-  card.type = "button";
-  card.className = "card";
-  card.style.textAlign = "left";
-  card.style.cursor = "pointer";
-  card.innerHTML = `
-    <h3>${escapeHtml(ds.title || ds.id)}</h3>
-    <div class="id">${escapeHtml(ds.id)}</div>
-    <div class="desc">${escapeHtml(ds.description || "")}</div>
-    <div class="tags">${topics
-      .slice(0, 6)
-      .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
-      .join("")}</div>
-  `;
-  card.addEventListener("click", () => {
-    window.location.hash = `#/d/${encodeURIComponent(ds.id)}`;
-  });
-  return card;
-}
+async function load() {
+  const cfg = window.OPENDATA_CONFIG || {};
+  const candidates = [
+    new URL(window.location.href).searchParams.get("index"),
+    cfg.defaultIndexUrl,
+    new URL("../index.json", window.location.href).toString(),
+  ].filter(Boolean);
 
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderPreviewTable(preview) {
-  const cols = preview.columns || [];
-  const rows = preview.rows || [];
-  if (!cols.length) {
-    return `<div class="muted">No preview available.</div>`;
-  }
-  const head = `<tr>${cols.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
-  const body = rows
-    .map((r) => `<tr>${cols.map((c) => `<td>${escapeHtml(r[c] ?? "")}</td>`).join("")}</tr>`)
-    .join("");
-  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-}
-
-function renderStats(ds) {
-  const kv = [
-    ["version", ds.version],
-    ["updated_at", ds.updated_at],
-    ["row_count", ds.row_count],
-    ["size", fmtBytes(ds.data_size_bytes)],
-  ];
-  return kv
-    .filter(([, v]) => v !== undefined)
-    .map(
-      ([k, v]) =>
-        `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v === null ? "-" : v)}</dd>`,
-    )
-    .join("");
-}
-
-async function showDetail(state, datasetId) {
-  const ds = (state.datasets || []).find((d) => d.id === datasetId);
-  if (!ds) {
-    $("detail-title").textContent = "Dataset not found";
-    $("detail-id").textContent = datasetId;
-    setView("detail");
-    return;
-  }
-
-  $("detail-title").textContent = ds.title || ds.id;
-  $("detail-id").textContent = ds.id;
-  $("detail-repo").href = ds.repo || "#";
-  $("detail-snippet").textContent = `import opendata as od\n\ndf = od.load(\"${ds.id}\")`;
-  $("detail-stats").innerHTML = renderStats(ds);
-
-  const base = deriveBaseUrl(state.indexUrl);
-  const dataUrl = ds.data_key ? base + ds.data_key : "#";
-  $("detail-data").href = dataUrl;
-
-  const readmeUrl = ds.readme_key ? base + ds.readme_key : null;
-  const previewUrl = ds.preview_key ? base + ds.preview_key : null;
-  const schemaUrl = ds.schema_key ? base + ds.schema_key : null;
-
-  $("readme").textContent = "(loading…)";
-  $("preview").innerHTML = `<div class="muted">Loading preview…</div>`;
-  $("schema").textContent = "(loading…)";
-
-  if (readmeUrl) {
-    const txt = await fetchText(readmeUrl);
-    $("readme").textContent = txt || "(README not found)";
-  } else {
-    $("readme").textContent = "(README not available)";
-  }
-
-  if (previewUrl) {
+  for (const url of candidates) {
     try {
-      const preview = await fetchJson(previewUrl);
-      $("preview").innerHTML = renderPreviewTable(preview);
-    } catch (e) {
-      $("preview").innerHTML = `<div class="muted">Failed to load preview.</div>`;
-    }
-  } else {
-    $("preview").innerHTML = `<div class="muted">No preview key in index.</div>`;
-  }
-
-  if (schemaUrl) {
-    const schema = await fetchJson(schemaUrl).catch(() => null);
-    $("schema").textContent = schema ? JSON.stringify(schema, null, 2) : "(schema not found)";
-  } else {
-    $("schema").textContent = "(schema not available)";
-  }
-
-  setView("detail");
-}
-
-function parseRoute() {
-  const h = window.location.hash || "";
-  if (h.startsWith("#/d/")) {
-    const raw = h.slice("#/d/".length);
-    return { name: "detail", datasetId: decodeURIComponent(raw) };
-  }
-  return { name: "list" };
-}
-
-function openConfig(initialValue) {
-  $("config").classList.remove("hidden");
-  $("config-input").value = initialValue || "";
-  $("config-input").focus();
-}
-
-function closeConfig() {
-  $("config").classList.add("hidden");
-}
-
-async function boot() {
-  const state = {
-    indexUrl: null,
-    baseUrl: null,
-    index: null,
-    datasets: [],
-  };
-
-  $("config-btn").addEventListener("click", () => openConfig(state.indexUrl));
-  $("config-cancel").addEventListener("click", closeConfig);
-  $("config").addEventListener("click", (e) => {
-    if (e.target && e.target.id === "config") closeConfig();
-  });
-  $("back").addEventListener("click", () => {
-    window.location.hash = "#/";
-  });
-  $("copy-snippet").addEventListener("click", async () => {
-    const text = $("detail-snippet").textContent || "";
-    await navigator.clipboard.writeText(text).catch(() => {});
-  });
-
-  $("config-save").addEventListener("click", async () => {
-    const url = $("config-input").value.trim();
-    if (!url) return;
-    window.localStorage.setItem(STORAGE_KEY, url);
-    state.indexUrl = url;
-    closeConfig();
-    await reloadIndex(state);
-    await handleRoute(state);
-  });
-
-  const initial = getIndexUrlFromQuery() || window.localStorage.getItem(STORAGE_KEY);
-  if (!initial) {
-    // If the portal is hosted in the same bucket as index.json (e.g. R2), try
-    // a relative default: /portal/index.html -> ../index.json.
-    const auto = new URL("../index.json", window.location.href).toString();
-    try {
-      await fetchJson(auto);
-      state.indexUrl = auto;
-      window.localStorage.setItem(STORAGE_KEY, auto);
-      await reloadIndex(state);
-    } catch (_) {
-      openConfig("");
+      const idx = await fetchJson(url);
+      state.url = url;
+      state.base = deriveBaseUrl(url);
+      state.datasets = idx.datasets || [];
+      render();
       return;
+    } catch (_) {}
+  }
+  $("dataset-list").textContent = "Failed to load index.json";
+}
+
+function render() {
+  const q = ($("search").value || "").toLowerCase();
+  const filtered = state.datasets.filter(d => {
+    if (!q) return true;
+    return `${d.id} ${d.title || ""} ${d.description || ""}`.toLowerCase().includes(q);
+  });
+  $("dataset-list").innerHTML = renderTable(filtered);
+}
+
+async function showDetail(id) {
+  const ds = state.datasets.find(d => d.id === id);
+  if (!ds) return;
+
+  $("detail-title").textContent = ds.id;
+  $("detail-data").href = ds.data_key ? state.base + ds.data_key : "#";
+  $("detail-snippet").textContent = `import opendata as od\ndf = od.load("${ds.id}")`;
+
+  const stats = [
+    ["updated", fmt.date(ds.updated_at)],
+    ["rows", fmt.rows(ds.row_count)],
+    ["size", fmt.bytes(ds.data_size_bytes)],
+    ["license", ds.license],
+    ["frequency", ds.frequency],
+  ].filter(([,v]) => v && v !== "-");
+  $("detail-stats").innerHTML = stats.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+
+  $("preview").innerHTML = "<span class='muted'>Loading...</span>";
+  $("schema").textContent = "Loading...";
+
+  if (ds.preview_key) {
+    try {
+      $("preview").innerHTML = renderPreview(await fetchJson(state.base + ds.preview_key));
+    } catch (_) {
+      $("preview").innerHTML = "<span class='muted'>Failed.</span>";
     }
   } else {
-    state.indexUrl = initial;
-    await reloadIndex(state);
+    $("preview").innerHTML = "<span class='muted'>No preview.</span>";
   }
 
-  window.addEventListener("hashchange", () => {
-    handleRoute(state);
-  });
-
-  $("search").addEventListener("input", () => {
-    renderList(state);
-  });
-
-  await handleRoute(state);
-}
-
-async function reloadIndex(state) {
-  state.baseUrl = deriveBaseUrl(state.indexUrl);
-  $("index-url").textContent = state.indexUrl;
-
-  state.index = await fetchJson(state.indexUrl);
-  state.datasets = Array.isArray(state.index.datasets) ? state.index.datasets : [];
-  renderList(state);
-}
-
-function renderList(state) {
-  const q = ($("search").value || "").trim().toLowerCase();
-  const list = $("dataset-list");
-  list.innerHTML = "";
-
-  const filtered = (state.datasets || []).filter((d) => {
-    if (!q) return true;
-    const blob = `${d.id} ${d.title || ""} ${d.description || ""} ${(d.topics || []).join(" ")}`.toLowerCase();
-    return blob.includes(q);
-  });
-
-  if (!filtered.length) {
-    const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.textContent = "No datasets match your search.";
-    list.appendChild(empty);
-    return;
-  }
-
-  for (const ds of filtered) {
-    list.appendChild(renderDatasetCard(ds));
-  }
-}
-
-async function handleRoute(state) {
-  const route = parseRoute();
-  if (route.name === "detail") {
-    await showDetail(state, route.datasetId);
+  if (ds.metadata_key) {
+    try {
+      const meta = await fetchJson(state.base + ds.metadata_key);
+      const schema = { format: meta.format, columns: meta.columns };
+      $("schema").textContent = JSON.stringify(schema, null, 2);
+    } catch (_) {
+      $("schema").textContent = "(failed)";
+    }
   } else {
-    setView("list");
+    $("schema").textContent = "(none)";
+  }
+
+  $("list-view").classList.add("hidden");
+  $("detail-view").classList.remove("hidden");
+}
+
+function route() {
+  const h = window.location.hash;
+  if (h.startsWith("#/d/")) {
+    showDetail(decodeURIComponent(h.slice(4)));
+  } else {
+    $("list-view").classList.remove("hidden");
+    $("detail-view").classList.add("hidden");
   }
 }
 
-boot().catch((e) => {
-  console.error(e);
-  openConfig("");
-});
+$("search").addEventListener("input", render);
+window.addEventListener("hashchange", route);
+load().then(route);
