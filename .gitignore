@@ -15,10 +15,12 @@ __pycache__/
 dist/
 build/
 
-# Local data/cache
-.opendata/
-out/
-
 # Node
 node_modules/
 dist/
+
+.producers/
+
+# Local data/artifacts (never commit)
+.opendata/
+out/

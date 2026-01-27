@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "opendata"
 version = "0.1.0"
 description = "OpenData registry SDK and CLI"
-readme = "opendata.md"
+readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
   "pandas>=2.1",
