@@ -25,10 +25,10 @@ KISS 原则：崇尚简洁。不要过度设计模式。不要过度抽象。不
 
 ```
 src/opendata/            # Python SDK + CLI（命令 od）
-src/opendata/storage/    # StorageBackend: local / r2 / http
+src/opendata/storage/    # StorageBackend: r2 / http / memory
 tests/                   # pytest 单测
-producers/official/      # 官方 producers（每个目录都有 opendata.yaml/main.py/README.md）
-scripts/                 # 编排脚本（重点 scripts/publish_official_local.py）
+producers/               # 可选 producers（每个目录都有 opendata.yaml/main.py/README.md）
+scripts/                 # 编排脚本（重点 scripts/publish_producers_local.py）
 portal/                  # 纯静态 portal（无 Node 构建链）
 schemas/                 # 合同/Schema 文档
 .github/workflows/       # CI / 定时发布
@@ -38,8 +38,7 @@ schemas/                 # 合同/Schema 文档
 
 - `README.md`
 - `opendata_todo.md`（规划/里程碑）
-- `schemas/dataset_contract.md`
-- `schemas/metadata.md`
+- `schemas.md`
 
 ## Cursor/Copilot 规则
 
@@ -51,16 +50,14 @@ schemas/                 # 合同/Schema 文档
 
 - Python: `>=3.9`（见 `pyproject.toml`）
 - 虚拟环境：建议使用 `.venv/`；macOS 可能没有 `python`，用 `python3` 或 `.venv/bin/python`。
-- 本地 storage 默认目录：`.opendata/storage/`（不要提交到 git）
-- 本地 cache 默认目录：`~/.cache/opendata/`（可用 `OPENDATA_CACHE_DIR` 覆盖）
+- 不写本地 cache：SDK consumer 侧不会落盘缓存 parquet
 
 ## 环境变量（SDK + scripts 共用）
 
-- `OPENDATA_STORAGE`：`local|r2|http`（默认 `local`）
-- `OPENDATA_LOCAL_STORAGE_DIR`：默认 `.opendata/storage`
+- `OPENDATA_STORAGE`：`r2|http`（可选 `memory` 仅用于测试）
 - `OPENDATA_HTTP_BASE_URL`：`HttpStorage` 的 base URL（例 `https://<bucket>.r2.dev/`）
 - `OPENDATA_INDEX_URL`：若设置且未显式设置 `OPENDATA_STORAGE`，则自动启用 HTTP storage
-- Producer 运行期：`OPENDATA_VERSION`、`OPENDATA_PREVIEW_ROWS`
+- Producer 运行期：`OPENDATA_PREVIEW_ROWS`
 
 R2（S3 兼容）环境变量：
 
@@ -100,12 +97,11 @@ pytest -k "registry_build" -q
 
 # CLI 冒烟
 od --help
-od load official/owid-covid-global-daily --head 3
-OPENDATA_INDEX_URL="https://<bucket>.r2.dev/index.json" od load official/owid-covid-global-daily --head 3
+od load getopendata/owid-covid-global-daily --head 3
+OPENDATA_INDEX_URL="https://<bucket>.r2.dev/index.json" od load getopendata/owid-covid-global-daily --head 3
 
-# 本地发布冒烟（写到本地 storage）
-OPENDATA_STORAGE=local .venv/bin/python scripts/publish_official_local.py --version 2026-01-24
-OPENDATA_STORAGE=local .venv/bin/python scripts/publish_official_local.py --only official/owid-covid-global-daily
+# 发布冒烟（写到 R2）
+OPENDATA_STORAGE=r2 .venv/bin/python scripts/publish_producers_local.py --ignore-failures
 
 # Portal 本地预览
 python3 -m http.server 8000
@@ -123,24 +119,23 @@ Dataset contract / 对象 key：
 
 - 永远不要手写 key；用 `src/opendata/ids.py` 里的 helper。
 - 稳定对象布局（v1）：
-  - `datasets/<namespace>/<name>/<version>/data.parquet`
-  - `datasets/<namespace>/<name>/<version>/schema.json`
-  - `datasets/<namespace>/<name>/<version>/preview.json`
-  - `datasets/<namespace>/<name>/latest.json`
+  - `datasets/<namespace>/<name>/data.parquet`
+  - `datasets/<namespace>/<name>/metadata.json`
   - `datasets/<namespace>/<name>/README.md`
+  - `index.json`
 
 ## 测试与数据
 
 - 单元测试默认不得访问网络；需要集成测试时请新增显式标记。
-- 测试优先用 `tmp_path` + `LocalStorage`，避免依赖真实 bucket。
-- 大文件/缓存目录不要提交：`.opendata/`、`.venv/`、`*.egg-info/`、`.pytest_cache/`、`.ruff_cache/`。
+- 测试优先用 `MemoryStorage`（内存后端），避免依赖真实 bucket。
+- 大文件/产物目录不要提交：`.venv/`、`*.egg-info/`、`.pytest_cache/`、`.ruff_cache/`。
 
 ## 行为准则 (Dos & Don'ts)
 
 ### Don'ts (不要)
 
 1. **不要** 手写对象 key；统一使用 `src/opendata/ids.py`。
-2. **不要** 在单测里访问网络或真实 bucket；默认用 `LocalStorage`。
+2. **不要** 在单测里访问网络或真实 bucket；默认用 `MemoryStorage`。
 3. **不要** 在 producers 运行过程中并发/增量写 `index.json`；应在批处理结束后一次性重建。
 4. **不要** 让 `src/opendata/__init__.py` 触发重 import 或任何 I/O。
 
@@ -148,7 +143,7 @@ Dataset contract / 对象 key：
 
 1. **要** 做较大改动后至少跑一遍：`ruff format --check .`、`ruff check .`、`mypy src`、`pytest`。
 2. **要** 使用 `python3` + `.venv`；R2 相关功能需安装 `pip install -e ".[r2]"`。
-3. **要** registry 由集中 rebuild 生成（`scripts/publish_official_local.py` / `Registry.build_from_producer_root()`），避免竞态。
+3. **要** registry 由集中 rebuild 生成（`scripts/publish_producers_local.py` / `Registry.build_from_producer_root()`），避免竞态。
 
 ## 反思记录
 

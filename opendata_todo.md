@@ -78,14 +78,14 @@ od deploy  # 自动生成/更新 GitHub Actions、配置发布流程
 
 ### 3.1 R2 对象布局（可预测、可索引）
 
-**MVP：只保留最新产物（覆盖写），但支持“按时间分片”**
+**MVP：稳定 key（覆盖写）**
 
-* `datasets/<name>/manifest.json`（**分片索引**：时间范围 → 对象 key；用于 time-range 选择）
-* `datasets/<name>/data/`（Parquet 分片对象，推荐按日/月）
+* `index.json`（全局 registry）
+* `datasets/<namespace>/<name>/data.parquet`
+* `datasets/<namespace>/<name>/metadata.json`
+* `datasets/<namespace>/<name>/README.md`
 
-  * 示例：`data/date=YYYY-MM-DD/part-000.parquet`（或 `data/yyyymmdd.parquet`）
-* `datasets/<name>/schema.json`
-* `datasets/<name>/README.md`（稳定 key，用于详情页）
+（后续可扩展：manifest + 分片对象，用于按时间区间只拉取必要数据。）
 
 ### 3.2 元数据：`opendata.yaml`（静态 Source of Truth）
 
@@ -116,12 +116,11 @@ od deploy  # 自动生成/更新 GitHub Actions、配置发布流程
 
 * `owners`: string[]（维护者）
 * `frequency`: string（例如 `daily`/`hourly`/`monthly`/`adhoc`）
-* `versioning`: string（例如 `date`/`semver`）
 
 示例：
 
 ```yaml
-id: official/treasury-yield-curve-daily
+id: getopendata/treasury-yield-curve-daily
 title: US Treasury Yield Curve (Daily)
 description: Daily yield curve rates published by the U.S. Treasury.
 license: Public Domain
@@ -138,7 +137,6 @@ geo:
   countries: [US]
 owners: [<github_handle>]
 frequency: daily
-versioning: date
 ```
 
 
@@ -189,14 +187,13 @@ export default {
 
 ### Milestone 0：样板工程 + 最小规范（1–2 天）
 
-- [x] 输出：dataset_id 规则、元数据 schema、R2 key layout、官方 3–5 个数据集清单
+- [x] 输出：dataset_id 规则、元数据 schema、R2 key layout、示例 3–5 个数据集清单
 - [x] 验收：一份“生产者 repo 最小示例”让人看懂如何接入
 
 ### Milestone 1：SDK 核心 I/O（3–7 天）
 
-- [x] `od.load()`：读取 `latest.json`，下载 `data.parquet` 并返回 DataFrame（pandas）
-- [x] `od.push()`：DataFrame/文件 → Parquet → 上传（同时写入 schema/preview/latest）
-- [x] 基础缓存：避免重复下载（本地 cache dir 下复用 parquet）
+- [x] `od.load()`：读取 `data.parquet` 并返回 DataFrame（pandas；内存解码，不落盘缓存）
+- [x] `od.push()`：DataFrame/文件 → Parquet → 上传（同时写入 metadata/preview）
 - [x] 验收：本地 `push → load` 闭环（单测覆盖）
 - [ ] `od.load()`：支持 `start/end/columns` 等参数
 - [ ] `manifest.json` + 时间分片：按区间只下载覆盖范围的分片
@@ -205,7 +202,7 @@ export default {
 
 - [x] `index.json` registry：加载/保存/更新数据集列表
 - [x] 注册 dataset 元数据：`od registry add` / `Registry.register_from_file()`
-- [x] `index.json` 生成：从 producers root 重建并合并 `latest.json` stats
+- [x] `index.json` 生成：从 producers root 重建并合并 `metadata.json`
 - [x] 避免并发竞态：所有 producers 结束后一次性 rebuild `index.json`
 - [ ] Registry 服务端：鉴权、repo→dataset_id 映射、pre-signed GET/PUT
 - [ ] 验收：Portal/SDK 都只依赖 Registry 完成“查找 → 下载”（SDK 当前不读 `index.json` 做发现）
@@ -218,7 +215,7 @@ export default {
 ### Milestone 4：一键部署（od deploy + Actions）（5–10 天）
 
 - [x] workflow：cron + 手动触发，运行 main.py，上传到 R2（`od deploy` 生成）
-- [x] 官方 producers：定时 workflow 发布到 R2
+- [x] 示例 producers（可选）：定时 workflow 发布到 R2
 - [ ] 推荐：走短期 pre-signed PUT，不下发永久密钥
 - [ ] 支持：self-hosted runner（重任务/固定 IP 的逃生舱）
 - [ ] 验收：fork/clone → init → deploy → 等一次 action → Portal 可见更新
@@ -228,7 +225,7 @@ export default {
 - [x] 列表页：搜索（关键字匹配 id/title/description/tags）
 - [ ] 列表页：筛选（tag/namespace/更新时间/时间覆盖范围）
 - [x] 详情页：README + schema + 下载示例
-- [x] 预览：预生成 head 100 rows（preview.json）避免在线计算
+- [x] 预览：预生成 head 100 rows（嵌入 metadata.json）避免在线计算
 - [x] 验收：非技术用户也能从网页复制 `od.load()` 用起来
 
 ### Milestone 6：鉴权/限流/商业化（后续）

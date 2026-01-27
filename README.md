@@ -1,17 +1,17 @@
 # getopendata
 
-docs-first 的 OpenData Registry MVP：把 "producer repo" 里的数据产物发布到可索引的对象存储（local/R2/HTTP），并通过 Python SDK/CLI + 纯静态 portal 进行发现与消费。
+docs-first 的 OpenData Registry MVP：把 "producer repo" 里的数据产物发布到可索引的对象存储（R2/HTTP），并通过 Python SDK/CLI + 纯静态 portal 进行发现与消费。
 
 - Producer: Python `main.py` 定时抓取/生成数据
-- Storage: Cloudflare R2 / 本地目录 / HTTP（对象 key 稳定、可预测）
-- Registry: `index.json`（数据集列表 + 元数据 + latest stats）
+- Storage: Cloudflare R2 / HTTP（对象 key 稳定、可预测）
+- Registry: `index.json`（数据集列表 + 元数据）
 - Consumer: `od load <dataset_id>` / `import opendata as od; od.load(...)`
 - Portal: 静态站点读取 `index.json`，支持搜索/详情/README/schema/preview
 
 相关文档：
 
-- `schemas/dataset_contract.md`（对象布局/产物合同）
-- `schemas/metadata.md`（`opendata.yaml` 元数据合同）
+- `schemas/dataset_contract.md`（对象布局 + `opendata.yaml` 元数据合同）
+ - `schemas.md`（对象布局 + `opendata.yaml` 元数据合同）
 
 ## 快速开始（本地开发）
 
@@ -28,20 +28,23 @@ mypy src
 pytest
 ```
 
-## 运行官方 producers（写入本地 storage）
+## 发布 producers 到 R2
 
-默认本地 storage 目录：`.opendata/storage/`。
+如果在本仓库维护 producers（例如 `producers/<namespace>/<slug>/`），可用脚本批量发布。
+本地手动跑（需要 R2 凭证；会直接写入 R2，不会落盘缓存 parquet）：
 
 ```bash
 source .venv/bin/activate
-OPENDATA_STORAGE=local \
-  python3 scripts/publish_official_local.py
+pip install -e ".[r2]"
+
+export OPENDATA_STORAGE=r2
+export OPENDATA_R2_ENDPOINT_URL=...
+export OPENDATA_R2_BUCKET=...
+export OPENDATA_R2_ACCESS_KEY_ID=...
+export OPENDATA_R2_SECRET_ACCESS_KEY=...
+
+python3 scripts/publish_producers_local.py --root producers --ignore-failures
 ```
-
-产物：
-
-- `.opendata/storage/index.json`
-- `.opendata/storage/datasets/<namespace>/<name>/...`
 
 ## Portal 预览（本地）
 
@@ -65,8 +68,8 @@ CLI（`od`）：
 
 ```bash
 od --help
-od load official/owid-covid-global-daily --head 3
-od load official/owid-covid-global-daily --download-only
+OPENDATA_INDEX_URL="https://<bucket>.r2.dev/index.json" \
+  od load getopendata/owid-covid-global-daily --head 3
 ```
 
 Python：
@@ -74,7 +77,8 @@ Python：
 ```python
 import opendata as od
 
-df = od.load("official/owid-covid-global-daily")
+# Configure storage via env vars (e.g. OPENDATA_INDEX_URL / OPENDATA_STORAGE=r2)
+df = od.load("getopendata/owid-covid-global-daily")
 print(df.head())
 ```
 
@@ -89,30 +93,24 @@ print(df.head())
 推荐通过脚手架生成：
 
 ```bash
-od init official/example-dataset --dir ./my-producer
+od init getopendata/example-dataset --dir ./my-producer
 cd my-producer
 od validate --meta opendata.yaml
 ```
 
-官方 producer 放在：`producers/official/<slug>/`。
+如在本仓库维护 producers，建议放在：`producers/<namespace>/<slug>/`。
 
 ## Registry（`index.json`）
 
 `index.json` 是全局 registry（portal 依赖它做发现）。避免并发/增量写导致竞态：推荐在批处理结束后一次性重建。
 
-本地 rebuild 官方 registry：
-
-```bash
-OPENDATA_STORAGE=local \
-  python3 scripts/publish_official_local.py
-```
+`index.json` 在批处理结束后一次性重建（`scripts/publish_producers_local.py`）。
 
 ## Storage 配置
 
-SDK/脚本通过环境变量选择 storage：
+SDK/脚本通过环境变量选择 storage（本项目不支持本地目录作为 storage backend，也不会落盘缓存 parquet）：
 
-- `OPENDATA_STORAGE=local|r2|http`（默认 `local`）
-- `OPENDATA_LOCAL_STORAGE_DIR`（默认 `.opendata/storage`）
+- `OPENDATA_STORAGE=r2|http`（可选 `memory` 仅用于测试）
 
 HTTP 只读（从公开 bucket 读取）：
 
@@ -137,11 +135,10 @@ export OPENDATA_R2_SECRET_ACCESS_KEY=...
 稳定对象布局（v1）：
 
 - `datasets/<namespace>/<name>/data.parquet`
-- `datasets/<namespace>/<name>/schema.json`
-- `datasets/<namespace>/<name>/preview.json`
-- `datasets/<namespace>/<name>/stats.json`
+- `datasets/<namespace>/<name>/metadata.json`
 - `datasets/<namespace>/<name>/README.md`
+- `index.json`
 
 ## 发布到 R2（GitHub Actions）
 
-官方 producers 的定时发布 workflow：`.github/workflows/publish_official.yml`
+生产者 repo 可通过 `od deploy` 生成 GitHub Actions workflow 并定时发布到 R2。
