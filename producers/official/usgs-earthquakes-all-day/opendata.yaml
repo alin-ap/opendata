@@ -1,4 +1,3 @@
-meta_version: 2
 id: official/usgs-earthquakes-all-day
 title: USGS Earthquakes (All Day)
 description: Earthquake events from the USGS all_day feed (rolling last 24 hours).

@@ -1,4 +1,3 @@
-meta_version: 2
 id: official/coingecko-btc-usd-market-daily
 title: CoinGecko BTC Market (Daily)
 description: Daily BTC market price/market cap/volume in USD from CoinGecko (last 365 days).

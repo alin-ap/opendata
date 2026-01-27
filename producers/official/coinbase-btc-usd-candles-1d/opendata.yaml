@@ -1,4 +1,3 @@
-meta_version: 2
 id: official/coinbase-btc-usd-candles-1d
 title: Coinbase BTC-USD Candles (1d)
 description: Daily OHLCV candles for BTC-USD from Coinbase Exchange API (last 300 days).

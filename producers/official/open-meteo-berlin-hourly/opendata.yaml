@@ -1,4 +1,3 @@
-meta_version: 2
 id: official/open-meteo-berlin-hourly
 title: Open-Meteo Berlin Hourly
 description: Hourly weather observations/forecast for Berlin (rolling past 7 days).
