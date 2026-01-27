@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from opendata.errors import DatasetIdError, VersionError
-from opendata.ids import data_key, latest_key, schema_key, validate_dataset_id, validate_version
+from opendata.errors import DatasetIdError
+from opendata.ids import (
+    data_key,
+    metadata_key,
+    preview_key,
+    readme_key,
+    validate_dataset_id,
+)
 
 
 def test_validate_dataset_id_ok() -> None:
@@ -26,24 +32,9 @@ def test_validate_dataset_id_bad(bad: str) -> None:
         validate_dataset_id(bad)
 
 
-def test_validate_version_ok() -> None:
-    assert validate_version("2026-01-24") == "2026-01-24"
-    assert validate_version("v1.2.3") == "v1.2.3"
-
-
-@pytest.mark.parametrize("bad", ["", "a" * 65, "2026/01/24", "../x"])
-def test_validate_version_bad(bad: str) -> None:
-    with pytest.raises(VersionError):
-        validate_version(bad)
-
-
 def test_key_layout() -> None:
     dataset_id = "official/us-stock-daily"
-    version = "2026-01-24"
-    assert (
-        data_key(dataset_id, version) == "datasets/official/us-stock-daily/2026-01-24/data.parquet"
-    )
-    assert (
-        schema_key(dataset_id, version) == "datasets/official/us-stock-daily/2026-01-24/schema.json"
-    )
-    assert latest_key(dataset_id) == "datasets/official/us-stock-daily/latest.json"
+    assert data_key(dataset_id) == "datasets/official/us-stock-daily/data.parquet"
+    assert preview_key(dataset_id) == "datasets/official/us-stock-daily/preview.json"
+    assert metadata_key(dataset_id) == "datasets/official/us-stock-daily/metadata.json"
+    assert readme_key(dataset_id) == "datasets/official/us-stock-daily/README.md"
