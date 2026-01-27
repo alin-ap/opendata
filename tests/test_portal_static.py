@@ -15,4 +15,4 @@ def test_portal_html_references_assets() -> None:
     html = (root / "portal" / "index.html").read_text(encoding="utf-8")
     assert "app.js" in html
     assert "styles.css" in html
-    assert "index.json" in html or "Index URL" in html
+    assert "config.js" in html

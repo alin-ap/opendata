@@ -15,8 +15,7 @@ def test_publish_dataframe_from_dir_uploads_readme(tmp_path: Path) -> None:
     producer_dir.mkdir(parents=True)
 
     (producer_dir / "opendata.yaml").write_text(
-        """meta_version: 2
-id: official/example-producer
+        """id: official/example-producer
 title: Example
 description: Example dataset
 license: MIT

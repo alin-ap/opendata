@@ -14,8 +14,7 @@ from opendata.storage.local import LocalStorage
 def test_load_metadata(tmp_path: Path) -> None:
     meta_path = tmp_path / "opendata.yaml"
     meta_path.write_text(
-        """meta_version: 2
-id: official/us-stock-daily
+        """id: official/us-stock-daily
 title: US Stock Daily
 description: Daily OHLCV bars for US stocks.
 license: MIT
@@ -31,6 +30,7 @@ owners: [example]
 
     meta = load_metadata(meta_path)
     assert meta.id == "official/us-stock-daily"
+    assert meta.meta_version == 2
     assert meta.title == "US Stock Daily"
     assert "stocks" in meta.topics
 
@@ -41,8 +41,7 @@ def test_registry_register_and_refresh(tmp_path: Path) -> None:
 
     meta_path = tmp_path / "opendata.yaml"
     meta_path.write_text(
-        """meta_version: 2
-id: official/us-stock-daily
+        """id: official/us-stock-daily
 title: US Stock Daily
 description: Daily OHLCV bars for US stocks.
 license: MIT
@@ -56,7 +55,6 @@ source:
 
     meta = reg.register_from_file(meta_path)
     index = json.loads(storage.get_bytes("index.json"))
-    assert index["meta_version"] == 1
     assert index["datasets"][0]["id"] == meta.id
 
     df = pd.DataFrame({"a": [1, 2, 3]})
@@ -66,16 +64,14 @@ source:
         storage,
         dataset_id=meta.id,
         parquet_path=parquet_path,
-        version="2026-01-24",
         preview_rows=2,
     )
 
-    reg.refresh_stats(meta.id)
+    reg.refresh_metadata(meta.id)
     index2 = json.loads(storage.get_bytes("index.json"))
     entry = index2["datasets"][0]
     assert entry["id"] == meta.id
-    assert entry["version"] == "2026-01-24"
     assert entry["row_count"] == 3
     assert entry["preview_key"] == published.preview_key
     assert entry["data_key"] == published.data_key
-    assert entry["schema_key"] == published.schema_key
+    assert entry["metadata_key"] == published.metadata_key

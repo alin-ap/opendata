@@ -19,8 +19,7 @@ def test_registry_build_from_producers(tmp_path: Path) -> None:
     (producers / "b").mkdir(parents=True)
 
     (producers / "a" / "opendata.yaml").write_text(
-        """meta_version: 2
-id: official/a
+        """id: official/a
 title: A
 description: A
 license: MIT
@@ -33,8 +32,7 @@ source:
     )
 
     (producers / "b" / "opendata.yaml").write_text(
-        """meta_version: 2
-id: official/b
+        """id: official/b
 title: B
 description: B
 license: MIT
@@ -51,18 +49,16 @@ source:
         storage,
         dataset_id="official/a",
         df=pd.DataFrame({"x": [1, 2, 3]}),
-        version="2026-01-24",
         preview_rows=1,
     )
 
     reg.build_from_producer_root(producers)
     idx = json.loads(storage.get_bytes("index.json"))
-    assert idx["meta_version"] == 1
     assert len(idx["datasets"]) == 2
 
     a = [d for d in idx["datasets"] if d["id"] == "official/a"][0]
     b = [d for d in idx["datasets"] if d["id"] == "official/b"][0]
 
-    assert a["version"] == "2026-01-24"
     assert "preview_key" in a
-    assert "version" not in b
+    assert "metadata_key" in a
+    assert "preview_key" not in b
