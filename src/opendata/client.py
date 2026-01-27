@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from .ids import data_key, validate_dataset_id
 from .publish import publish_dataframe
@@ -12,58 +12,24 @@ from .storage import storage_from_env
 from .storage.base import StorageBackend
 
 
-def _default_cache_dir() -> Path:
-    env = os.environ.get("OPENDATA_CACHE_DIR")
-    if env:
-        return Path(env)
-    return Path.home() / ".cache" / "opendata"
-
-
-def _cache_path_for_parquet(dataset_id: str, cache_dir: Path) -> Path:
-    # Mirror the on-bucket layout under the cache directory.
-    return cache_dir / data_key(dataset_id)
-
-
 def load(
     dataset_id: str,
     *,
     storage: Optional[StorageBackend] = None,
-    cache_dir: Optional[Path] = None,
 ) -> pd.DataFrame:
-    """Load a dataset into a pandas DataFrame."""
+    """Load a dataset into a pandas DataFrame.
+
+    This function does not write any local cache files. Data is fetched from the
+    configured storage backend and decoded in-memory.
+    """
 
     storage = storage or storage_from_env()
-    cache_dir = cache_dir or _default_cache_dir()
 
     validate_dataset_id(dataset_id)
-    cache_path = _cache_path_for_parquet(dataset_id, cache_dir)
 
-    if not cache_path.exists():
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.download_file(data_key(dataset_id), cache_path)
-
-    return pd.read_parquet(cache_path)
-
-
-def load_parquet_path(
-    dataset_id: str,
-    *,
-    storage: Optional[StorageBackend] = None,
-    cache_dir: Optional[Path] = None,
-) -> Path:
-    """Download (if needed) and return the local parquet path."""
-
-    storage = storage or storage_from_env()
-    cache_dir = cache_dir or _default_cache_dir()
-
-    validate_dataset_id(dataset_id)
-    cache_path = _cache_path_for_parquet(dataset_id, cache_dir)
-
-    if not cache_path.exists():
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.download_file(data_key(dataset_id), cache_path)
-
-    return cache_path
+    parquet_bytes = storage.get_bytes(data_key(dataset_id))
+    table = pq.read_table(pa.BufferReader(parquet_bytes))
+    return table.to_pandas()
 
 
 def push(

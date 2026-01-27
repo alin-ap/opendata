@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from .client import load, load_parquet_path
+from .client import load
 from .deploy import deploy_from_metadata
 from .errors import OpendataError
 from .metadata import load_metadata
@@ -16,11 +16,6 @@ from .storage import storage_from_env
 
 def _cmd_load(args: argparse.Namespace) -> int:
     storage = storage_from_env()
-
-    if args.download_only:
-        path = load_parquet_path(args.dataset_id, storage=storage)
-        print(path)
-        return 0
 
     df = load(args.dataset_id, storage=storage)
     head = int(args.head)
@@ -92,7 +87,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_load = sub.add_parser("load", help="Load a dataset")
     p_load.add_argument("dataset_id")
     p_load.add_argument("--head", default="5")
-    p_load.add_argument("--download-only", action="store_true")
     p_load.set_defaults(func=_cmd_load)
 
     p_push = sub.add_parser("push", help="Publish a parquet file")

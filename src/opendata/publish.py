@@ -154,7 +154,7 @@ def publish_parquet_file(
     )
     preview_bytes = _canonical_json_bytes(preview_obj)
 
-    storage.upload_file(dk, parquet_path, content_type="application/octet-stream")
+    storage.put_bytes(dk, parquet_path.read_bytes(), content_type="application/octet-stream")
     storage.put_bytes(pk, preview_bytes, content_type="application/json")
 
     published = PublishedDataset(
@@ -227,9 +227,7 @@ def publish_table(
     row_count = int(table.num_rows)
     columns = _table_schema_columns(table)
 
-    preview_obj = _table_preview_json(
-        table, dataset_id=dataset_id, preview_rows=preview_rows
-    )
+    preview_obj = _table_preview_json(table, dataset_id=dataset_id, preview_rows=preview_rows)
     preview_bytes = _canonical_json_bytes(preview_obj)
 
     parquet_bytes = _table_to_parquet_bytes(table)
