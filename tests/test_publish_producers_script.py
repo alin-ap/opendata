@@ -4,6 +4,9 @@ import json
 import sys
 from pathlib import Path
 
+from opendata.ids import data_key, metadata_key
+from opendata.storage.memory import get_memory_storage, reset_memory_storage
+
 
 def _write_meta(path: Path, dataset_id: str) -> None:
     path.write_text(
@@ -20,11 +23,9 @@ source:
     )
 
 
-def test_publish_official_script_ignore_failures(tmp_path: Path, monkeypatch) -> None:
-    # Local storage for publishing.
-    bucket = tmp_path / "bucket"
-    monkeypatch.setenv("OPENDATA_STORAGE", "local")
-    monkeypatch.setenv("OPENDATA_LOCAL_STORAGE_DIR", str(bucket))
+def test_publish_producers_script_ignore_failures(tmp_path: Path, monkeypatch) -> None:
+    reset_memory_storage()
+    monkeypatch.setenv("OPENDATA_STORAGE", "memory")
 
     # Two producers: one succeeds, one fails.
     root = tmp_path / "producers"
@@ -33,7 +34,7 @@ def test_publish_official_script_ignore_failures(tmp_path: Path, monkeypatch) ->
     ok.mkdir(parents=True)
     bad.mkdir(parents=True)
 
-    _write_meta(ok / "opendata.yaml", "official/ok-dataset")
+    _write_meta(ok / "opendata.yaml", "alice/ok-dataset")
     (ok / "main.py").write_text(
         """from __future__ import annotations
 
@@ -55,7 +56,7 @@ if __name__ == "__main__":
         encoding="utf-8",
     )
 
-    _write_meta(bad / "opendata.yaml", "official/bad-dataset")
+    _write_meta(bad / "opendata.yaml", "alice/bad-dataset")
     (bad / "main.py").write_text(
         """from __future__ import annotations
 
@@ -67,27 +68,17 @@ raise SystemExit(1)
     # Import after env set.
     repo_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo_root))
-    from scripts.publish_official_local import main
+    from scripts.publish_producers_local import main
 
-    rc = main(
-        [
-            "--root",
-            str(root),
-            "--version",
-            "2026-01-24",
-            "--ignore-failures",
-        ]
-    )
+    rc = main(["--root", str(root), "--ignore-failures"])
     assert rc == 0
 
-    # The ok dataset should be published.
-    latest_path = bucket / "datasets" / "official" / "ok-dataset" / "latest.json"
-    assert latest_path.exists()
-    latest = json.loads(latest_path.read_text(encoding="utf-8"))
-    assert latest["version"] == "2026-01-24"
+    storage = get_memory_storage()
+    assert storage.exists(data_key("alice/ok-dataset"))
+    assert storage.exists(metadata_key("alice/ok-dataset"))
 
-    index = json.loads((bucket / "index.json").read_text(encoding="utf-8"))
+    index = json.loads(storage.get_bytes("index.json"))
     assert len(index["datasets"]) == 2
     ids = [d["id"] for d in index["datasets"]]
-    assert "official/ok-dataset" in ids
-    assert "official/bad-dataset" in ids
+    assert "alice/ok-dataset" in ids
+    assert "alice/bad-dataset" in ids

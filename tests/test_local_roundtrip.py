@@ -11,7 +11,7 @@ from opendata.storage.memory import MemoryStorage
 
 def test_publish_dataframe_and_load_roundtrip() -> None:
     storage = MemoryStorage()
-    dataset_id = "official/us-stock-daily"
+    dataset_id = "getopendata/us-stock-daily"
     df_in = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     publish_dataframe(storage, dataset_id=dataset_id, df=df_in, preview_rows=2)
 
@@ -21,7 +21,7 @@ def test_publish_dataframe_and_load_roundtrip() -> None:
 
 def test_publish_parquet_file_and_load_roundtrip(tmp_path: Path) -> None:
     storage = MemoryStorage()
-    dataset_id = "official/us-stock-daily"
+    dataset_id = "getopendata/us-stock-daily"
 
     df_in = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     parquet_path = tmp_path / "in.parquet"

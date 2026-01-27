@@ -7,11 +7,11 @@ import pandas as pd
 
 from opendata.publish import publish_dataframe
 from opendata.registry import Registry
-from opendata.storage.local import LocalStorage
+from opendata.storage.memory import MemoryStorage
 
 
 def test_registry_build_from_producers(tmp_path: Path) -> None:
-    storage = LocalStorage(tmp_path / "bucket")
+    storage = MemoryStorage()
     reg = Registry(storage)
 
     producers = tmp_path / "producers"
@@ -19,7 +19,7 @@ def test_registry_build_from_producers(tmp_path: Path) -> None:
     (producers / "b").mkdir(parents=True)
 
     (producers / "a" / "opendata.yaml").write_text(
-        """id: official/a
+        """id: alice/a
 title: A
 description: A
 license: MIT
@@ -32,7 +32,7 @@ source:
     )
 
     (producers / "b" / "opendata.yaml").write_text(
-        """id: official/b
+        """id: alice/b
 title: B
 description: B
 license: MIT
@@ -47,7 +47,7 @@ source:
     # Only publish one dataset.
     publish_dataframe(
         storage,
-        dataset_id="official/a",
+        dataset_id="alice/a",
         df=pd.DataFrame({"x": [1, 2, 3]}),
         preview_rows=1,
     )
@@ -56,9 +56,8 @@ source:
     idx = json.loads(storage.get_bytes("index.json"))
     assert len(idx["datasets"]) == 2
 
-    a = [d for d in idx["datasets"] if d["id"] == "official/a"][0]
-    b = [d for d in idx["datasets"] if d["id"] == "official/b"][0]
+    a = [d for d in idx["datasets"] if d["id"] == "alice/a"][0]
+    b = [d for d in idx["datasets"] if d["id"] == "alice/b"][0]
 
-    assert "preview_key" in a
     assert "metadata_key" in a
-    assert "preview_key" not in b
+    assert "metadata_key" not in b

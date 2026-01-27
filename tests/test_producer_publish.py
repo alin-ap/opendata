@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from opendata.ids import latest_key, readme_key
+from opendata.ids import readme_key
 from opendata.producer import publish_dataframe_from_dir
-from opendata.storage.local import LocalStorage
+from opendata.storage.memory import MemoryStorage
 
 
 def test_publish_dataframe_from_dir_uploads_readme(tmp_path: Path) -> None:
@@ -15,7 +15,7 @@ def test_publish_dataframe_from_dir_uploads_readme(tmp_path: Path) -> None:
     producer_dir.mkdir(parents=True)
 
     (producer_dir / "opendata.yaml").write_text(
-        """id: official/example-producer
+        """id: getopendata/example-producer
 title: Example
 description: Example dataset
 license: MIT
@@ -28,23 +28,23 @@ source:
     )
     (producer_dir / "README.md").write_text("# Hello\n", encoding="utf-8")
 
-    storage = LocalStorage(tmp_path / "bucket")
+    storage = MemoryStorage()
     df = pd.DataFrame({"a": [1, 2, 3]})
 
     published = publish_dataframe_from_dir(
         producer_dir,
         df=df,
         storage=storage,
-        version="2026-01-24",
         preview_rows=2,
     )
 
-    latest = json.loads(storage.get_bytes(latest_key("official/example-producer")))
-    assert latest["version"] == "2026-01-24"
-    assert latest["preview_key"] == published.preview_key
+    assert storage.exists(published.data_key)
+    assert storage.exists(published.metadata_key)
 
+    meta = json.loads(storage.get_bytes(published.metadata_key))
+    assert meta.get("preview") is not None
     assert (
-        storage.get_bytes(readme_key("official/example-producer"))
+        storage.get_bytes(readme_key("getopendata/example-producer"))
         .decode("utf-8")
         .startswith("# Hello")
     )

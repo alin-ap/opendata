@@ -4,14 +4,13 @@ import contextlib
 import socket
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pandas as pd
 
 from opendata.client import load
-from opendata.publish import publish_parquet_file
+from opendata.ids import data_key
 from opendata.storage.http import HttpStorage
-from opendata.storage.local import LocalStorage
 
 
 def _free_port() -> int:
@@ -22,14 +21,14 @@ def _free_port() -> int:
 
 def test_http_storage_can_load_dataset(tmp_path: Path) -> None:
     bucket_dir = tmp_path / "bucket"
-    storage = LocalStorage(bucket_dir)
 
-    dataset_id = "official/stooq-aapl-daily"
-    version = "2026-01-24"
+    dataset_id = "getopendata/stooq-aapl-daily"
     df_in = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    parquet_path = tmp_path / "data.parquet"
+
+    key = data_key(dataset_id)
+    parquet_path = bucket_dir / Path(*PurePosixPath(key).parts)
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
     df_in.to_parquet(parquet_path, index=False)
-    publish_parquet_file(storage, dataset_id=dataset_id, parquet_path=parquet_path, version=version)
 
     port = _free_port()
 
@@ -47,12 +46,7 @@ def test_http_storage_can_load_dataset(tmp_path: Path) -> None:
 
     try:
         http_storage = HttpStorage(base_url=f"http://127.0.0.1:{port}/")
-        df_out = load(
-            dataset_id,
-            version=version,
-            storage=http_storage,
-            cache_dir=tmp_path / "cache",
-        )
+        df_out = load(dataset_id, storage=http_storage)
         pd.testing.assert_frame_equal(df_in, df_out)
     finally:
         httpd.shutdown()
