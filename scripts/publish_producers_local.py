@@ -15,9 +15,12 @@ from opendata.storage import storage_from_env
 
 
 def _producer_dirs(root: Path) -> list[Path]:
-    return sorted(
-        [p for p in root.glob("*/") if (p / "main.py").exists() and (p / "opendata.yaml").exists()]
-    )
+    dirs: set[Path] = set()
+    for meta_path in root.glob("**/opendata.yaml"):
+        d = meta_path.parent
+        if (d / "main.py").exists():
+            dirs.add(d)
+    return sorted(dirs)
 
 
 @contextmanager
@@ -32,7 +35,7 @@ def _chdir(path: Path):
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", default="producers/official")
+    parser.add_argument("--root", default="producers")
     parser.add_argument("--only", action="append", default=[])
     parser.add_argument("--ignore-failures", action="store_true")
     args = parser.parse_args(argv)
