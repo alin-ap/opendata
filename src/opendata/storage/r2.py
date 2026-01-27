@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Optional, cast
 
 from ..errors import NotFoundError, StorageError
@@ -119,22 +118,3 @@ class R2Storage(StorageBackend):
             self._client.put_object(**kwargs)
         except Exception as e:
             raise StorageError(f"failed to put object: {key}") from e
-
-    def download_file(self, key: str, dest_path: Path) -> None:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            self._client.download_file(self._bucket, key, str(dest_path))
-        except Exception as e:
-            raise NotFoundError(f"not found: {key}") from e
-
-    def upload_file(self, key: str, src_path: Path, *, content_type: Optional[str] = None) -> None:
-        extra: dict[str, str] = {}
-        if content_type:
-            extra["ContentType"] = content_type
-        try:
-            self._client.upload_file(str(src_path), self._bucket, key, ExtraArgs=extra or None)
-        except TypeError:
-            # boto3 rejects ExtraArgs=None
-            self._client.upload_file(str(src_path), self._bucket, key)
-        except Exception as e:
-            raise StorageError(f"failed to upload object: {key}") from e
