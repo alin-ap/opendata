@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
-import sys
+import runpy
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from opendata.ids import stats_key
+from opendata.ids import data_key, metadata_key
 from opendata.metadata import load_metadata
 from opendata.portal_publish import publish_portal_assets
 from opendata.registry import Registry
@@ -18,6 +18,16 @@ def _producer_dirs(root: Path) -> list[Path]:
     return sorted(
         [p for p in root.glob("*/") if (p / "main.py").exists() and (p / "opendata.yaml").exists()]
     )
+
+
+@contextmanager
+def _chdir(path: Path):
+    prev = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(prev)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -44,20 +54,21 @@ def main(argv: Optional[list[str]] = None) -> int:
                 continue
             print(f"[run] {meta.id} ({d})")
 
-            env = dict(**os.environ)
+            with _chdir(d):
+                runpy.run_path(str(d / "main.py"), run_name="__main__")
 
-            # Ensure all producers write into the same local storage directory.
-            if env.get("OPENDATA_STORAGE", "").strip().lower() in {"local", "file"}:
-                base = Path(env.get("OPENDATA_LOCAL_STORAGE_DIR", ".opendata/storage")).resolve()
-                env["OPENDATA_LOCAL_STORAGE_DIR"] = str(base)
-
-            subprocess.run([sys.executable, "main.py"], cwd=str(d), env=env, check=True)
-
-            # Ensure the producer actually published stats.
-            if not storage.exists(stats_key(meta.id)):
-                raise RuntimeError("producer did not publish stats.json")
+            # Ensure the producer actually published the stable objects.
+            if not storage.exists(data_key(meta.id)):
+                raise RuntimeError("producer did not publish data.parquet")
+            if not storage.exists(metadata_key(meta.id)):
+                raise RuntimeError("producer did not publish metadata.json")
 
             successes += 1
+        except SystemExit as e:
+            failures.append(f"{d.name}: {e}")
+            print(f"[error] {d}: {e}")
+            if not args.ignore_failures:
+                raise
         except Exception as e:  # noqa: BLE001
             failures.append(f"{d.name}: {e}")
             print(f"[error] {d}: {e}")
