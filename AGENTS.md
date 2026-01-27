@@ -38,8 +38,8 @@ schemas/                 # 合同/Schema 文档
 
 - `README.md`
 - `opendata_todo.md`（规划/里程碑）
-- `schemas/dataset_contract_v1.md`
-- `schemas/metadata_v2.md`
+- `schemas/dataset_contract.md`
+- `schemas/metadata.md`
 
 ## Cursor/Copilot 规则
 
@@ -140,23 +140,15 @@ Dataset contract / 对象 key：
 ### Don'ts (不要)
 
 1. **不要** 手写对象 key；统一使用 `src/opendata/ids.py`。
-2. **不要** 随意改动 dataset_id/version 规则或 key layout；它们是 public API。
-3. **不要** 在单测里访问网络或真实 bucket；默认用 `LocalStorage`。
-4. **不要** 使用 `requests` 时省略 timeout；大文件下载必须 streaming。
-5. **不要** 在代码/日志/提交中输出敏感信息（`.env`、API key、Access Key、签名 URL、Authorization header）。
-6. **不要** 在 producers 运行过程中并发/增量写 `index.json`；应在批处理结束后一次性重建。
-7. **不要** 给 `portal/` 引入构建链或第三方依赖；保持 zero-build。
-8. **不要** 让 `src/opendata/__init__.py` 触发重 import 或任何 I/O。
+2. **不要** 在单测里访问网络或真实 bucket；默认用 `LocalStorage`。
+3. **不要** 在 producers 运行过程中并发/增量写 `index.json`；应在批处理结束后一次性重建。
+4. **不要** 让 `src/opendata/__init__.py` 触发重 import 或任何 I/O。
 
 ### Dos (要)
 
 1. **要** 做较大改动后至少跑一遍：`ruff format --check .`、`ruff check .`、`mypy src`、`pytest`。
 2. **要** 使用 `python3` + `.venv`；R2 相关功能需安装 `pip install -e ".[r2]"`。
-3. **要** 在 producers 中优先使用 `publish_dataframe_from_dir()`（见 `src/opendata/producer.py`）。
-4. **要** 通过 `OPENDATA_VERSION` 控制发布版本，通过 `OPENDATA_PREVIEW_ROWS` 控制 preview 行数。
-5. **要** 读取远程 JSON/README 时防御性处理（类型/长度/字段存在性），把输入当成不可信。
-6. **要** registry 由集中 rebuild 生成（`scripts/publish_official_local.py` / `Registry.build_from_producer_root()`），避免竞态。
-7. **要** 合同/公开行为变更同步更新 `schemas/*.md`，里程碑变更同步更新 `opendata_todo.md`。
+3. **要** registry 由集中 rebuild 生成（`scripts/publish_official_local.py` / `Registry.build_from_producer_root()`），避免竞态。
 
 ## 反思记录
 

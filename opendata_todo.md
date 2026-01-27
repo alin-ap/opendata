@@ -91,11 +91,10 @@ od deploy  # 自动生成/更新 GitHub Actions、配置发布流程
 
 目标：让数据集“可被发现、可被审计、可被复用”。`opendata.yaml` 是 producer repo 的静态 Source of Truth。
 
-meta_version: 2（结构化元数据）。
+结构化元数据。
 
 必填字段：
 
-* `meta_version`: 2
 * `id`: dataset_id（`namespace/name`）
 * `title` / `description`
 * `license`: 优先 SPDX（例如 `MIT`, `Apache-2.0`）
@@ -122,7 +121,6 @@ meta_version: 2（结构化元数据）。
 示例：
 
 ```yaml
-meta_version: 2
 id: official/treasury-yield-curve-daily
 title: US Treasury Yield Curve (Daily)
 description: Daily yield curve rates published by the U.S. Treasury.
@@ -191,7 +189,7 @@ export default {
 
 ### Milestone 0：样板工程 + 最小规范（1–2 天）
 
-- [x] 输出：dataset_id 规则、元数据 schema（meta_version:2）、R2 key layout、官方 3–5 个数据集清单
+- [x] 输出：dataset_id 规则、元数据 schema、R2 key layout、官方 3–5 个数据集清单
 - [x] 验收：一份“生产者 repo 最小示例”让人看懂如何接入
 
 ### Milestone 1：SDK 核心 I/O（3–7 天）
