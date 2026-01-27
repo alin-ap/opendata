@@ -3,36 +3,49 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>OpenData</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="top">
-      <a href="#/">Home</a> - <a href="https://github.com/getopendata/getopendata" target="_blank">GitHub</a>
+      <div class="top-inner">
+        <div class="brand">
+          <a class="brand-link" href="#/">OpenData</a>
+          <span class="brand-sep" aria-hidden="true">/</span>
+          <span id="brand-portal" class="brand-sub">portal</span>
+          <span id="brand-dataset" class="hidden">
+            <span id="brand-dataset-name"></span>
+          </span>
+        </div>
+        <nav class="nav">
+          <a href="#/">Home</a>
+          <a href="https://github.com/AlphaPilotHQ/" target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+      </div>
     </header>
 
     <main>
       <section id="list-view">
-        <input id="search" type="search" placeholder="Search..." autocomplete="off" />
-        <div id="dataset-list" class="ascii-table"></div>
+        <div class="search-row">
+          <input id="search" type="search" placeholder="Search datasets..." autocomplete="off" />
+        </div>
+        <div id="dataset-list" role="region" aria-label="Dataset list"></div>
       </section>
 
       <section id="detail-view" class="hidden">
-        <p><a id="back" href="#/">&lt; Back</a></p>
-        <h2 id="detail-title"></h2>
-        <p><a id="detail-data" href="#">Download .parquet</a></p>
+        <div class="detail-top">
+          <a id="detail-data" class="cta" href="#">Download .parquet</a>
+        </div>
 
         <h3>Usage</h3>
         <pre id="detail-snippet"></pre>
 
-        <h3>Stats</h3>
-        <dl id="detail-stats"></dl>
+        <h3>Metadata</h3>
+        <dl id="detail-meta"></dl>
 
         <h3>Preview</h3>
         <div id="preview"></div>
-
-        <h3>Schema</h3>
-        <pre id="schema"></pre>
       </section>
     </main>
 

@@ -34,34 +34,28 @@ function pad(s, len, right) {
 }
 
 function renderTable(datasets) {
-  if (!datasets.length) return "No datasets.";
+  if (!datasets.length) return "<p class='muted'>No datasets.</p>";
 
   const cols = [
-    { k: "id", l: "Dataset ID", w: 35 },
-    { k: "row_count", l: "Rows", w: 10, r: 1, f: fmt.rows },
-    { k: "data_size_bytes", l: "Size", w: 10, r: 1, f: fmt.bytes },
-    { k: "updated_at", l: "Updated", w: 12, f: fmt.date },
+    { k: "id", l: "Dataset ID" },
+    { k: "row_count", l: "Rows", r: 1, f: fmt.rows },
+    { k: "data_size_bytes", l: "Size", r: 1, f: fmt.bytes },
+    { k: "updated_at", l: "Updated", r: 1, f: fmt.date },
   ];
 
-  const W = cols.reduce((s, c) => s + c.w, 0) + cols.length + 1;
-  const L = [];
+  const head = cols.map(c => `<th${c.r ? ' class="r"' : ""}>${esc(c.l)}</th>`).join("");
+  const rows = datasets.map(ds => {
+    const cells = cols.map((c, i) => {
+      const val = c.f ? c.f(ds[c.k]) : (ds[c.k] ?? "-");
+      if (i === 0) {
+        return `<td><a href="#/d/${encodeURIComponent(ds.id)}">${esc(val)}</a></td>`;
+      }
+      return `<td${c.r ? ' class="r"' : ""}>${esc(val)}</td>`;
+    });
+    return `<tr>${cells.join("")}</tr>`;
+  });
 
-  L.push("." + "-".repeat(W - 2) + ".");
-  const t = "Dataset Registry";
-  const p = Math.floor((W - 2 - t.length) / 2);
-  L.push("|" + " ".repeat(p) + t + " ".repeat(W - 2 - p - t.length) + "|");
-  L.push("|" + "-".repeat(W - 2) + "|");
-  L.push("| " + cols.map(c => pad(c.l, c.w, c.r)).join(" | ") + " |");
-  L.push("|-" + cols.map(c => "-".repeat(c.w)).join("-|-") + "-|");
-
-  for (const ds of datasets) {
-    const cells = cols.map(c => pad(c.f ? c.f(ds[c.k]) : (ds[c.k] ?? "-"), c.w, c.r));
-    const link = `<a href="#/d/${encodeURIComponent(ds.id)}">${esc(cells[0].trim())}</a>`;
-    L.push("| " + link + " ".repeat(cols[0].w - cells[0].trim().length) + " | " + cells.slice(1).join(" | ") + " |");
-  }
-
-  L.push("'" + "-".repeat(W - 2) + "'");
-  return L.join("\n");
+  return `<table class="data-table"><thead><tr>${head}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
 
 function renderPreview(p) {
@@ -118,42 +112,37 @@ async function showDetail(id) {
   const ds = state.datasets.find(d => d.id === id);
   if (!ds) return;
 
-  $("detail-title").textContent = ds.id;
+  $("brand-dataset-name").textContent = ds.id;
   $("detail-data").href = ds.data_key ? state.base + ds.data_key : "#";
   $("detail-snippet").textContent = `import opendata as od\ndf = od.load("${ds.id}")`;
 
-  const stats = [
+  const meta = [
     ["updated", fmt.date(ds.updated_at)],
     ["rows", fmt.rows(ds.row_count)],
     ["size", fmt.bytes(ds.data_size_bytes)],
     ["license", ds.license],
     ["frequency", ds.frequency],
   ].filter(([,v]) => v && v !== "-");
-  $("detail-stats").innerHTML = stats.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
-
+  $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
   $("preview").innerHTML = "<span class='muted'>Loading...</span>";
-  $("schema").textContent = "Loading...";
 
-  if (ds.preview_key) {
+  if (ds.metadata_key) {
     try {
-      $("preview").innerHTML = renderPreview(await fetchJson(state.base + ds.preview_key));
+      const m = await fetchJson(state.base + ds.metadata_key);
+      if (m.format) meta.push(["format", m.format]);
+      if (m.columns) meta.push(["columns", m.columns.map(c => c.name).join(", ")]);
+      $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+
+      if (m.preview) {
+        $("preview").innerHTML = renderPreview(m.preview);
+      } else {
+        $("preview").innerHTML = "<span class='muted'>No preview.</span>";
+      }
     } catch (_) {
       $("preview").innerHTML = "<span class='muted'>Failed.</span>";
     }
   } else {
     $("preview").innerHTML = "<span class='muted'>No preview.</span>";
-  }
-
-  if (ds.metadata_key) {
-    try {
-      const meta = await fetchJson(state.base + ds.metadata_key);
-      const schema = { format: meta.format, columns: meta.columns };
-      $("schema").textContent = JSON.stringify(schema, null, 2);
-    } catch (_) {
-      $("schema").textContent = "(failed)";
-    }
-  } else {
-    $("schema").textContent = "(none)";
   }
 
   $("list-view").classList.add("hidden");
@@ -163,8 +152,12 @@ async function showDetail(id) {
 function route() {
   const h = window.location.hash;
   if (h.startsWith("#/d/")) {
+    $("brand-portal").classList.add("hidden");
+    $("brand-dataset").classList.remove("hidden");
     showDetail(decodeURIComponent(h.slice(4)));
   } else {
+    $("brand-portal").classList.remove("hidden");
+    $("brand-dataset").classList.add("hidden");
     $("list-view").classList.remove("hidden");
     $("detail-view").classList.add("hidden");
   }
