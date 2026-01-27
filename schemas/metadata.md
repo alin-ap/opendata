@@ -1,4 +1,4 @@
-# Dataset Metadata Schema (meta_version: 2)
+# Dataset Metadata Schema
 
 This document defines the structured dataset metadata format used by producer
 repositories.
@@ -8,7 +8,6 @@ File name: `opendata.yaml`
 ## Example
 
 ```yaml
-meta_version: 2
 id: official/treasury-yield-curve-daily
 title: US Treasury Yield Curve (Daily)
 description: Daily yield curve rates published by the U.S. Treasury.
@@ -27,14 +26,11 @@ geo:
 
 owners: [alin]
 frequency: daily
-versioning: date
 ```
 
 ## Fields
 
 Required:
-
-- `meta_version` (int): must be `2`.
 - `id` (string): dataset identifier.
   - Format: `namespace/name`
   - Regex: `^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$`
@@ -52,7 +48,6 @@ Optional:
 - `topics` (string[]): search/filter topics. Prefer short, lowercase tokens.
 - `owners` (string[]): GitHub handles or org/team names.
 - `frequency` (string): e.g. `hourly`, `daily`, `weekly`, `monthly`, `adhoc`.
-- `versioning` (string): version policy, e.g. `date` or `semver`.
 - `geo` (object): geographic scope.
   - `scope` (string): one of `global`, `region`, `country`, `multi`.
   - `countries` (string[], optional): ISO 3166-1 alpha-2.
