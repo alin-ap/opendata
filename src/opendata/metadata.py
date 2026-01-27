@@ -110,8 +110,8 @@ class DatasetMetadata:
         raw_version = data.get("meta_version", 2)
         try:
             meta_version = int(raw_version)
-        except (TypeError, ValueError):
-            raise ValidationError("meta_version must be an int")
+        except (TypeError, ValueError) as e:
+            raise ValidationError("meta_version must be an int") from e
         if meta_version != 2:
             raise ValidationError(f"unsupported meta_version: {meta_version}; expected 2")
 

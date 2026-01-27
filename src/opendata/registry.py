@@ -116,7 +116,6 @@ class Registry:
             "row_count",
             "data_size_bytes",
             "data_key",
-            "preview_key",
             "metadata_key",
             "checksum_sha256",
         ]:
@@ -184,7 +183,6 @@ class Registry:
                 "row_count",
                 "data_size_bytes",
                 "data_key",
-                "preview_key",
                 "metadata_key",
                 "checksum_sha256",
             ]:

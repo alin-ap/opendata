@@ -31,7 +31,7 @@ def init_dataset_repo(*, dataset_id: str, directory: Path) -> None:
             """# Producer entrypoint for opendata\n"
             "#\n"
             "# This script should publish directly via the opendata SDK.\n"
-            "# Configure storage via env vars (OPENDATA_STORAGE=local|r2, etc).\n\n"
+            "# Configure storage via env vars (OPENDATA_STORAGE=r2|http, etc).\n\n"
             "from __future__ import annotations\n\n"
             "from pathlib import Path\n\n"
             "import pandas as pd\n\n\n"

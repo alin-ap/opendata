@@ -12,7 +12,6 @@ from .hashing import sha256_bytes, sha256_file
 from .ids import (
     data_key,
     metadata_key,
-    preview_key,
     readme_key,
     validate_dataset_id,
 )
@@ -47,7 +46,7 @@ def _json_sanitize(value: Any) -> Any:
     return str(value)
 
 
-def _parquet_preview_json(path: Path, *, dataset_id: str, preview_rows: int) -> dict[str, Any]:
+def _parquet_preview_json(path: Path, *, preview_rows: int) -> dict[str, Any]:
     pf = pq.ParquetFile(path)
 
     batches: list[pa.RecordBatch] = []
@@ -68,7 +67,6 @@ def _parquet_preview_json(path: Path, *, dataset_id: str, preview_rows: int) -> 
     rows = [{k: _json_sanitize(v) for k, v in row.items()} for row in rows_raw]
 
     return {
-        "dataset_id": dataset_id,
         "generated_at": utc_now_iso(),
         "columns": list(table.column_names),
         "rows": rows,
@@ -91,29 +89,28 @@ class PublishedDataset:
         dataset_id: str,
         updated_at: str,
         data_key: str,
-        preview_key: str,
         metadata_key: str,
         row_count: int,
         data_size_bytes: int,
         checksum_sha256: str,
         columns: list[dict[str, str]],
+        preview: Optional[dict[str, Any]] = None,
     ) -> None:
         self.dataset_id = dataset_id
         self.updated_at = updated_at
         self.data_key = data_key
-        self.preview_key = preview_key
         self.metadata_key = metadata_key
         self.row_count = row_count
         self.data_size_bytes = data_size_bytes
         self.checksum_sha256 = checksum_sha256
         self.columns = columns
+        self.preview = preview
 
     def metadata(self) -> dict[str, Any]:
-        return {
+        meta: dict[str, Any] = {
             "dataset_id": self.dataset_id,
             "updated_at": self.updated_at,
             "data_key": self.data_key,
-            "preview_key": self.preview_key,
             "metadata_key": self.metadata_key,
             "row_count": self.row_count,
             "data_size_bytes": self.data_size_bytes,
@@ -121,6 +118,9 @@ class PublishedDataset:
             "format": "parquet",
             "columns": self.columns,
         }
+        if self.preview is not None:
+            meta["preview"] = self.preview
+        return meta
 
 
 def publish_parquet_file(
@@ -132,7 +132,7 @@ def publish_parquet_file(
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
 ) -> PublishedDataset:
-    """Publish a parquet file + metadata + preview.
+    """Publish a parquet file + metadata (optional preview in metadata).
 
     This is the low-level primitive used by `opendata.push()` and the CLI.
     """
@@ -140,7 +140,6 @@ def publish_parquet_file(
     validate_dataset_id(dataset_id)
 
     dk = data_key(dataset_id)
-    pk = preview_key(dataset_id)
     mk = metadata_key(dataset_id)
 
     row_count = _parquet_row_count(parquet_path)
@@ -149,24 +148,22 @@ def publish_parquet_file(
     checksum_sha256 = sha256_file(parquet_path)
     data_size_bytes = int(parquet_path.stat().st_size)
 
-    preview_obj = _parquet_preview_json(
-        parquet_path, dataset_id=dataset_id, preview_rows=preview_rows
-    )
-    preview_bytes = _canonical_json_bytes(preview_obj)
+    preview_obj = None
+    if preview_rows > 0:
+        preview_obj = _parquet_preview_json(parquet_path, preview_rows=preview_rows)
 
     storage.put_bytes(dk, parquet_path.read_bytes(), content_type="application/octet-stream")
-    storage.put_bytes(pk, preview_bytes, content_type="application/json")
 
     published = PublishedDataset(
         dataset_id=dataset_id,
         updated_at=updated_at or utc_now_iso(),
         data_key=dk,
-        preview_key=pk,
         metadata_key=mk,
         row_count=row_count,
         data_size_bytes=data_size_bytes,
         checksum_sha256=checksum_sha256,
         columns=columns,
+        preview=preview_obj,
     )
 
     if write_metadata:
@@ -181,7 +178,7 @@ def _table_schema_columns(table: pa.Table) -> list[dict[str, str]]:
     return [{"name": field.name, "type": str(field.type)} for field in table.schema]
 
 
-def _table_preview_json(table: pa.Table, *, dataset_id: str, preview_rows: int) -> dict[str, Any]:
+def _table_preview_json(table: pa.Table, *, preview_rows: int) -> dict[str, Any]:
     if preview_rows <= 0:
         view = table.slice(0, 0)
     else:
@@ -191,7 +188,6 @@ def _table_preview_json(table: pa.Table, *, dataset_id: str, preview_rows: int) 
     rows = [{k: _json_sanitize(v) for k, v in row.items()} for row in rows_raw]
 
     return {
-        "dataset_id": dataset_id,
         "generated_at": utc_now_iso(),
         "columns": list(view.column_names),
         "rows": rows,
@@ -221,14 +217,14 @@ def publish_table(
     validate_dataset_id(dataset_id)
 
     dk = data_key(dataset_id)
-    pk = preview_key(dataset_id)
     mk = metadata_key(dataset_id)
 
     row_count = int(table.num_rows)
     columns = _table_schema_columns(table)
 
-    preview_obj = _table_preview_json(table, dataset_id=dataset_id, preview_rows=preview_rows)
-    preview_bytes = _canonical_json_bytes(preview_obj)
+    preview_obj = None
+    if preview_rows > 0:
+        preview_obj = _table_preview_json(table, preview_rows=preview_rows)
 
     parquet_bytes = _table_to_parquet_bytes(table)
     data_size_bytes = len(parquet_bytes)
@@ -236,18 +232,17 @@ def publish_table(
     checksum_sha256 = sha256_bytes(parquet_bytes)
 
     storage.put_bytes(dk, parquet_bytes, content_type="application/octet-stream")
-    storage.put_bytes(pk, preview_bytes, content_type="application/json")
 
     published = PublishedDataset(
         dataset_id=dataset_id,
         updated_at=updated_at or utc_now_iso(),
         data_key=dk,
-        preview_key=pk,
         metadata_key=mk,
         row_count=row_count,
         data_size_bytes=data_size_bytes,
         checksum_sha256=checksum_sha256,
         columns=columns,
+        preview=preview_obj,
     )
 
     if write_metadata:
