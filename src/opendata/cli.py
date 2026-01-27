@@ -12,18 +12,17 @@ from .metadata import load_metadata
 from .publish import publish_parquet_file
 from .registry import Registry
 from .storage import storage_from_env
-from .versioning import default_version
 
 
 def _cmd_load(args: argparse.Namespace) -> int:
     storage = storage_from_env()
 
     if args.download_only:
-        path = load_parquet_path(args.dataset_id, version=args.version, storage=storage)
+        path = load_parquet_path(args.dataset_id, storage=storage)
         print(path)
         return 0
 
-    df = load(args.dataset_id, version=args.version, storage=storage)
+    df = load(args.dataset_id, storage=storage)
     head = int(args.head)
     print(df.head(head).to_string(index=False))
     print(f"\nrows={len(df)} cols={len(df.columns)}")
@@ -32,16 +31,14 @@ def _cmd_load(args: argparse.Namespace) -> int:
 
 def _cmd_push(args: argparse.Namespace) -> int:
     storage = storage_from_env()
-    version = args.version or default_version()
 
     published = publish_parquet_file(
         storage,
         dataset_id=args.dataset_id,
         parquet_path=Path(args.parquet_path),
-        version=version,
-        write_latest=not args.no_latest,
+        write_metadata=not args.no_stats,
     )
-    print(json.dumps(published.latest_pointer(), indent=2, sort_keys=True))
+    print(json.dumps(published.metadata(), indent=2, sort_keys=True))
     return 0
 
 
@@ -64,7 +61,7 @@ def _cmd_registry_add(args: argparse.Namespace) -> int:
     reg = Registry(storage, index_key=args.index_key)
     meta = reg.register_from_file(Path(args.meta))
     if args.refresh:
-        reg.refresh_stats(meta.id)
+        reg.refresh_metadata(meta.id)
     print(f"registered {meta.id} into {reg.index_key}")
     return 0
 
@@ -72,8 +69,8 @@ def _cmd_registry_add(args: argparse.Namespace) -> int:
 def _cmd_registry_refresh(args: argparse.Namespace) -> int:
     storage = storage_from_env()
     reg = Registry(storage, index_key=args.index_key)
-    reg.refresh_stats(args.dataset_id)
-    print(f"refreshed stats for {args.dataset_id} in {reg.index_key}")
+    reg.refresh_metadata(args.dataset_id)
+    print(f"refreshed metadata for {args.dataset_id} in {reg.index_key}")
     return 0
 
 
@@ -94,7 +91,6 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     p_load = sub.add_parser("load", help="Load a dataset")
     p_load.add_argument("dataset_id")
-    p_load.add_argument("--version")
     p_load.add_argument("--head", default="5")
     p_load.add_argument("--download-only", action="store_true")
     p_load.set_defaults(func=_cmd_load)
@@ -102,8 +98,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_push = sub.add_parser("push", help="Publish a parquet file")
     p_push.add_argument("dataset_id")
     p_push.add_argument("parquet_path")
-    p_push.add_argument("--version")
-    p_push.add_argument("--no-latest", action="store_true")
+    p_push.add_argument("--no-stats", action="store_true")
     p_push.set_defaults(func=_cmd_push)
 
     p_init = sub.add_parser("init", help="Create a dataset repo skeleton")
@@ -124,7 +119,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_reg_add.add_argument("--refresh", action="store_true")
     p_reg_add.set_defaults(func=_cmd_registry_add)
 
-    p_reg_refresh = reg_sub.add_parser("refresh", help="Refresh stats from latest.json")
+    p_reg_refresh = reg_sub.add_parser("refresh", help="Refresh from metadata.json")
     p_reg_refresh.add_argument("dataset_id")
     p_reg_refresh.add_argument("--index-key", default="index.json")
     p_reg_refresh.set_defaults(func=_cmd_registry_refresh)

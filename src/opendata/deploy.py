@@ -42,7 +42,6 @@ def render_github_actions_workflow(*, dataset_id: str, cron: str, python_version
         "          OPENDATA_R2_ACCESS_KEY_ID: ${{ secrets.OPENDATA_R2_ACCESS_KEY_ID }}\n"
         "          OPENDATA_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENDATA_R2_SECRET_ACCESS_KEY }}\n"
         "        run: |\n"
-        "          export OPENDATA_VERSION=$(date -u +%Y-%m-%d)\n"
         "          python main.py\n"
     )
 

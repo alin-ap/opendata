@@ -8,10 +8,9 @@ import pandas as pd
 import pyarrow as pa
 
 from .metadata import DatasetMetadata, load_metadata
-from .publish import PublishedVersion, publish_dataframe, publish_table, upload_readme
+from .publish import PublishedDataset, publish_dataframe, publish_table, upload_readme
 from .storage import storage_from_env
 from .storage.base import StorageBackend
-from .versioning import default_version
 
 
 def producer_metadata_path(producer_dir: Path) -> Path:
@@ -24,15 +23,6 @@ def producer_readme_path(producer_dir: Path) -> Path:
 
 def load_producer_metadata(producer_dir: Path) -> DatasetMetadata:
     return load_metadata(producer_metadata_path(producer_dir))
-
-
-def resolve_publish_version(version: Optional[str] = None) -> str:
-    if version:
-        return version
-    env = os.environ.get("OPENDATA_VERSION")
-    if env:
-        return env.strip()
-    return default_version()
 
 
 def resolve_preview_rows(preview_rows: Optional[int] = None) -> int:
@@ -51,14 +41,12 @@ def publish_dataframe_from_dir(
     producer_dir: Path,
     *,
     df: pd.DataFrame,
-    version: Optional[str] = None,
     preview_rows: Optional[int] = None,
     storage: Optional[StorageBackend] = None,
-) -> PublishedVersion:
+) -> PublishedDataset:
     """Publish a DataFrame for the dataset described in `producer_dir/opendata.yaml`."""
 
     meta = load_producer_metadata(producer_dir)
-    v = resolve_publish_version(version)
     pr = resolve_preview_rows(preview_rows)
     storage = storage or storage_from_env()
 
@@ -66,7 +54,6 @@ def publish_dataframe_from_dir(
         storage,
         dataset_id=meta.id,
         df=df,
-        version=v,
         preview_rows=pr,
     )
 
@@ -81,12 +68,10 @@ def publish_table_from_dir(
     producer_dir: Path,
     *,
     table: pa.Table,
-    version: Optional[str] = None,
     preview_rows: Optional[int] = None,
     storage: Optional[StorageBackend] = None,
-) -> PublishedVersion:
+) -> PublishedDataset:
     meta = load_producer_metadata(producer_dir)
-    v = resolve_publish_version(version)
     pr = resolve_preview_rows(preview_rows)
     storage = storage or storage_from_env()
 
@@ -94,7 +79,6 @@ def publish_table_from_dir(
         storage,
         dataset_id=meta.id,
         table=table,
-        version=v,
         preview_rows=pr,
     )
 

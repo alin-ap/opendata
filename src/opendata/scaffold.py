@@ -23,7 +23,7 @@ def init_dataset_repo(*, dataset_id: str, directory: Path) -> None:
             topics=[],
             owners=[],
         )
-        save_metadata(meta_path, meta)
+        save_metadata(meta_path, meta, include_meta_version=False)
 
     main_path = directory / "main.py"
     if not main_path.exists():

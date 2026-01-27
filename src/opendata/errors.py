@@ -13,10 +13,6 @@ class DatasetIdError(ValidationError):
     """Raised when a dataset_id is malformed."""
 
 
-class VersionError(ValidationError):
-    """Raised when a dataset version is malformed."""
-
-
 class NotFoundError(OpendataError):
     """Raised when an object is not found in storage."""
 

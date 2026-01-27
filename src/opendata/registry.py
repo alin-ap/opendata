@@ -16,7 +16,7 @@ def _canonical_json_bytes(data: dict[str, Any]) -> bytes:
 
 
 def _empty_index() -> dict[str, Any]:
-    return {"meta_version": 1, "generated_at": utc_now_iso(), "datasets": []}
+    return {"generated_at": utc_now_iso(), "datasets": []}
 
 
 class Registry:
@@ -43,15 +43,12 @@ class Registry:
         data = json.loads(raw)
         if not isinstance(data, dict):
             return _empty_index()
-        if data.get("meta_version") != 1:
-            return _empty_index()
         if not isinstance(data.get("datasets"), list):
             return _empty_index()
         return data
 
     def save(self, index: dict[str, Any]) -> None:
         index = dict(index)
-        index["meta_version"] = 1
         index["generated_at"] = utc_now_iso()
         self._storage.put_bytes(
             self._index_key, _canonical_json_bytes(index), content_type="application/json"
@@ -78,8 +75,6 @@ class Registry:
             entry["geo"] = meta.geo.to_dict()
         if meta.frequency:
             entry["frequency"] = meta.frequency
-        if meta.versioning:
-            entry["versioning"] = meta.versioning
 
         replaced = False
         for i, existing in enumerate(datasets):
@@ -99,47 +94,45 @@ class Registry:
         self.register(meta)
         return meta
 
-    def refresh_stats(self, dataset_id: str) -> None:
-        """Refresh index stats for a dataset from its `<dataset>/latest.json`."""
+    def refresh_metadata(self, dataset_id: str) -> None:
+        """Refresh index entry for a dataset from its `<dataset>/metadata.json`."""
 
         validate_dataset_id(dataset_id)
         index = self.load()
         datasets = list(index.get("datasets", []))
 
         try:
-            latest_raw = self._storage.get_bytes(f"datasets/{dataset_id}/latest.json")
+            meta_raw = self._storage.get_bytes(f"datasets/{dataset_id}/metadata.json")
         except NotFoundError:
             return
 
-        latest = json.loads(latest_raw)
-        if not isinstance(latest, dict):
+        meta_payload = json.loads(meta_raw)
+        if not isinstance(meta_payload, dict):
             return
 
-        stats: dict[str, Any] = {}
+        fields: dict[str, Any] = {}
         for key in [
-            "version",
             "updated_at",
             "row_count",
             "data_size_bytes",
             "data_key",
-            "schema_key",
             "preview_key",
+            "metadata_key",
             "checksum_sha256",
-            "schema_hash_sha256",
         ]:
-            if key in latest:
-                stats[key] = latest[key]
+            if key in meta_payload:
+                fields[key] = meta_payload[key]
 
         for i, existing in enumerate(datasets):
             if isinstance(existing, dict) and existing.get("id") == dataset_id:
-                datasets[i] = {**existing, **stats}
+                datasets[i] = {**existing, **fields}
                 break
 
         index["datasets"] = datasets
         self.save(index)
 
     def build_from_producer_root(self, producer_root: Path) -> dict[str, Any]:
-        """(Re)build `index.json` from producer metadata + latest pointers.
+        """(Re)build `index.json` from producer metadata + metadata.json files.
 
         This avoids races when multiple producers publish in parallel: only this
         method writes `index.json`.
@@ -169,42 +162,38 @@ class Registry:
                 entry["geo"] = meta.geo.to_dict()
             if meta.frequency:
                 entry["frequency"] = meta.frequency
-            if meta.versioning:
-                entry["versioning"] = meta.versioning
 
-            # Merge latest stats if available.
+            # Merge metadata if available.
             try:
-                latest_raw = self._storage.get_bytes(f"datasets/{meta.id}/latest.json")
+                meta_raw = self._storage.get_bytes(f"datasets/{meta.id}/metadata.json")
             except NotFoundError:
                 datasets.append(entry)
                 continue
 
             try:
-                latest = json.loads(latest_raw)
+                meta_payload = json.loads(meta_raw)
             except Exception:
                 datasets.append(entry)
                 continue
-            if not isinstance(latest, dict):
+            if not isinstance(meta_payload, dict):
                 datasets.append(entry)
                 continue
 
             for key in [
-                "version",
                 "updated_at",
                 "row_count",
                 "data_size_bytes",
                 "data_key",
-                "schema_key",
                 "preview_key",
+                "metadata_key",
                 "checksum_sha256",
-                "schema_hash_sha256",
             ]:
-                if key in latest:
-                    entry[key] = latest[key]
+                if key in meta_payload:
+                    entry[key] = meta_payload[key]
 
             datasets.append(entry)
 
         datasets.sort(key=lambda d: str(d.get("id", "")))
-        index = {"meta_version": 1, "generated_at": utc_now_iso(), "datasets": datasets}
+        index = {"generated_at": utc_now_iso(), "datasets": datasets}
         self.save(index)
         return index

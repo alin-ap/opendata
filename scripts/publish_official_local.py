@@ -1,22 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from opendata.ids import stats_key
 from opendata.metadata import load_metadata
 from opendata.portal_publish import publish_portal_assets
 from opendata.registry import Registry
 from opendata.storage import storage_from_env
-
-
-def _default_version() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _producer_dirs(root: Path) -> list[Path]:
@@ -28,7 +23,6 @@ def _producer_dirs(root: Path) -> list[Path]:
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default="producers/official")
-    parser.add_argument("--version", default=_default_version())
     parser.add_argument("--only", action="append", default=[])
     parser.add_argument("--ignore-failures", action="store_true")
     args = parser.parse_args(argv)
@@ -51,7 +45,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[run] {meta.id} ({d})")
 
             env = dict(**os.environ)
-            env["OPENDATA_VERSION"] = str(args.version)
 
             # Ensure all producers write into the same local storage directory.
             if env.get("OPENDATA_STORAGE", "").strip().lower() in {"local", "file"}:
@@ -60,11 +53,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
             subprocess.run([sys.executable, "main.py"], cwd=str(d), env=env, check=True)
 
-            # Ensure the producer actually published the requested version.
-            latest_raw = storage.get_bytes(f"datasets/{meta.id}/latest.json")
-            latest = json.loads(latest_raw)
-            if not isinstance(latest, dict) or latest.get("version") != str(args.version):
-                raise RuntimeError("producer did not publish expected version")
+            # Ensure the producer actually published stats.
+            if not storage.exists(stats_key(meta.id)):
+                raise RuntimeError("producer did not publish stats.json")
 
             successes += 1
         except Exception as e:  # noqa: BLE001

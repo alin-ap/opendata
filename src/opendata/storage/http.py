@@ -13,7 +13,7 @@ class HttpStorage(StorageBackend):
     """Read-only storage backend backed by HTTP(S).
 
     This is designed for public buckets (e.g. Cloudflare R2 public read). It
-    supports reading `index.json`, `latest.json`, Parquet objects, etc.
+    supports reading `index.json`, `metadata.json`, Parquet objects, etc.
     """
 
     def __init__(self, *, base_url: str, timeout_s: int = 60) -> None:
