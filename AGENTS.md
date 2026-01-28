@@ -27,7 +27,7 @@ KISS 原则：崇尚简洁。不要过度设计模式。不要过度抽象。不
 src/opendata/            # Python SDK + CLI（命令 od）
 src/opendata/storage/    # StorageBackend: r2 / http / memory
 tests/                   # pytest 单测
-producers/               # 可选 producers（每个目录都有 opendata.yaml/main.py/README.md）
+producers/               # 可选 producers（每个目录都有 main.py/README.md，CATALOG 写在代码里）
 scripts/                 # 编排脚本（重点 scripts/publish_producers_local.py）
 portal/                  # 纯静态 portal（无 Node 构建链）
 schemas/                 # 合同/Schema 文档

@@ -19,7 +19,6 @@ to allow the portal origin to read objects like:
 - `index.json`
 - `datasets/*/data.parquet`
 - `datasets/*/metadata.json`
-- `datasets/*/metadata.json`
 - `datasets/*/README.md`
 
 Minimum CORS for a public demo:

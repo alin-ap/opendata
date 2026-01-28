@@ -10,8 +10,7 @@ docs-first 的 OpenData Registry MVP：把 "producer repo" 里的数据产物发
 
 相关文档：
 
-- `schemas/dataset_contract.md`（对象布局 + `opendata.yaml` 元数据合同）
- - `schemas.md`（对象布局 + `opendata.yaml` 元数据合同）
+- `schemas.md`（对象布局 + metadata.json / catalog 合同）
 
 ## 快速开始（本地开发）
 
@@ -82,12 +81,11 @@ df = od.load("getopendata/owid-covid-global-daily")
 print(df.head())
 ```
 
-## Producer 合同（`opendata.yaml` + `main.py`）
+## Producer 合同（`main.py` + README）
 
 一个 producer repo / producer 目录的最小文件集：
 
-- `opendata.yaml`（元数据）
-- `main.py`（生成/抓取数据并发布）
+- `main.py`（生成/抓取数据并发布；内含 `CATALOG`）
 - `README.md`（数据集说明）
 
 推荐通过脚手架生成：
@@ -95,16 +93,13 @@ print(df.head())
 ```bash
 od init getopendata/example-dataset --dir ./my-producer
 cd my-producer
-od validate --meta opendata.yaml
 ```
 
 如在本仓库维护 producers，建议放在：`producers/<namespace>/<slug>/`。
 
 ## Registry（`index.json`）
 
-`index.json` 是全局 registry（portal 依赖它做发现）。避免并发/增量写导致竞态：推荐在批处理结束后一次性重建。
-
-`index.json` 在批处理结束后一次性重建（`scripts/publish_producers_local.py`）。
+`index.json` 是全局 registry（portal 依赖它做发现）。由各数据集的 `metadata.json` 提取/汇总字段生成。
 
 ## Storage 配置
 

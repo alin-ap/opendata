@@ -49,7 +49,7 @@ df_2024 = od.load(
 )
 ```
 
-**生产者（Creator）**：只写抓取脚本 `main.py` + 元数据 `opendata.yaml`，其余自动化
+**生产者（Creator）**：只写抓取脚本 `main.py`（内含 `CATALOG`），其余自动化
 
 ```bash
 od init    # 生成数据集骨架与元数据模板
@@ -87,9 +87,9 @@ od deploy  # 自动生成/更新 GitHub Actions、配置发布流程
 
 （后续可扩展：manifest + 分片对象，用于按时间区间只拉取必要数据。）
 
-### 3.2 元数据：`opendata.yaml`（静态 Source of Truth）
+### 3.2 元数据：`metadata.json`（单一 Source of Truth）
 
-目标：让数据集“可被发现、可被审计、可被复用”。`opendata.yaml` 是 producer repo 的静态 Source of Truth。
+目标：让数据集“可被发现、可被审计、可被复用”。`metadata.json` 由 producer 发布生成，包含目录字段与统计信息。
 
 结构化元数据。
 
@@ -209,7 +209,7 @@ export default {
 
 ### Milestone 3：生产者接入（od init）（2–4 天）
 
-- [x] 生成：`opendata.yaml`、`main.py` 模板、`README.md` 模板（`od init`）
+- [x] 生成：`main.py`（含 `CATALOG`）与 `README.md` 模板（`od init`）
 - [x] 验收：新手照模板改几行就能本地运行并发布
 
 ### Milestone 4：一键部署（od deploy + Actions）（5–10 天）
@@ -249,5 +249,5 @@ export default {
 **MVP 必须满足 3 个用户故事：**
 
 1. **Consumer**：`od.load("namespace/dataset")` 1 分钟内拿到 DataFrame（默认最新数据）。
-2. **Creator**：一个文件比如 `main.py` + `opendata.yaml`，即可一键部署定时任务并发布到 R2。
+2. **Creator**：一个文件比如 `main.py`（含 `CATALOG`），即可一键部署定时任务并发布到 R2。
 3. **Portal**：可搜索数据集（sdk也可查）、查看详情（README/License/Size/更新时间/仓库链接）并预览样例。
