@@ -7,8 +7,7 @@ from typing import Optional
 import pandas as pd
 import pyarrow as pa
 
-from .errors import ValidationError
-from .metadata import CatalogInput, DatasetCatalog, coerce_catalog
+from .metadata import CatalogInput, coerce_catalog
 from .publish import PublishedDataset, publish_dataframe, publish_table, upload_readme
 from .storage import storage_from_env
 from .storage.base import StorageBackend
@@ -34,8 +33,7 @@ def publish_dataframe_from_dir(
     producer_dir: Path,
     *,
     df: pd.DataFrame,
-    catalog: Optional[CatalogInput] = None,
-    dataset_id: Optional[str] = None,
+    catalog: CatalogInput,
     preview_rows: Optional[int] = None,
     storage: Optional[StorageBackend] = None,
 ) -> PublishedDataset:
@@ -44,16 +42,8 @@ def publish_dataframe_from_dir(
     pr = resolve_preview_rows(preview_rows)
     storage = storage or storage_from_env()
 
-    catalog_obj: Optional[DatasetCatalog] = None
-    if catalog is not None:
-        catalog_obj = coerce_catalog(catalog)
-        if dataset_id and catalog_obj.id != dataset_id:
-            raise ValidationError("catalog id does not match dataset_id")
-
-    if dataset_id is None:
-        if catalog_obj is None:
-            raise ValidationError("dataset_id or catalog is required")
-        dataset_id = catalog_obj.id
+    catalog_obj = coerce_catalog(catalog)
+    dataset_id = catalog_obj.id
 
     published = publish_dataframe(
         storage,
@@ -74,24 +64,15 @@ def publish_table_from_dir(
     producer_dir: Path,
     *,
     table: pa.Table,
-    catalog: Optional[CatalogInput] = None,
-    dataset_id: Optional[str] = None,
+    catalog: CatalogInput,
     preview_rows: Optional[int] = None,
     storage: Optional[StorageBackend] = None,
 ) -> PublishedDataset:
     pr = resolve_preview_rows(preview_rows)
     storage = storage or storage_from_env()
 
-    catalog_obj: Optional[DatasetCatalog] = None
-    if catalog is not None:
-        catalog_obj = coerce_catalog(catalog)
-        if dataset_id and catalog_obj.id != dataset_id:
-            raise ValidationError("catalog id does not match dataset_id")
-
-    if dataset_id is None:
-        if catalog_obj is None:
-            raise ValidationError("dataset_id or catalog is required")
-        dataset_id = catalog_obj.id
+    catalog_obj = coerce_catalog(catalog)
+    dataset_id = catalog_obj.id
 
     published = publish_table(
         storage,

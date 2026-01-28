@@ -22,6 +22,7 @@ def test_catalog_from_dict() -> None:
             "source": {"provider": "stooq", "homepage": "https://stooq.com/"},
             "topics": ["stocks", "us"],
             "owners": ["example"],
+            "frequency": "daily",
         }
     )
 
@@ -43,12 +44,13 @@ def test_registry_register_and_refresh(tmp_path: Path) -> None:
         "source": {"provider": "stooq", "homepage": "https://stooq.com/"},
         "topics": ["stocks", "us"],
         "owners": ["example"],
+        "frequency": "daily",
     }
 
     df = pd.DataFrame({"a": [1, 2, 3]})
     parquet_path = tmp_path / "data.parquet"
     df.to_parquet(parquet_path, index=False)
-    published = publish_parquet_file(
+    publish_parquet_file(
         storage,
         dataset_id=dataset_id,
         parquet_path=parquet_path,

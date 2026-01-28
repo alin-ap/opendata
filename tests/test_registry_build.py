@@ -26,6 +26,9 @@ def test_registry_refresh_creates_entries(tmp_path: Path) -> None:
             "license": "MIT",
             "repo": "https://github.com/example/repo",
             "source": {"provider": "example", "homepage": "https://example.com"},
+            "topics": ["example"],
+            "owners": ["example"],
+            "frequency": "daily",
         },
     )
 
@@ -41,6 +44,9 @@ def test_registry_refresh_creates_entries(tmp_path: Path) -> None:
             "license": "MIT",
             "repo": "https://github.com/example/repo",
             "source": {"provider": "example", "homepage": "https://example.com"},
+            "topics": ["example"],
+            "owners": ["example"],
+            "frequency": "daily",
         },
     )
 

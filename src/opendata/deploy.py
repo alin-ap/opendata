@@ -68,4 +68,6 @@ def deploy_workflow(
     cron: str = "0 0 * * *",
     python_version: str = "3.11",
 ) -> Path:
-    return write_github_actions_workflow(repo_dir=repo_dir, cron=cron, python_version=python_version)
+    return write_github_actions_workflow(
+        repo_dir=repo_dir, cron=cron, python_version=python_version
+    )

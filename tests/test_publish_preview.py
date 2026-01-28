@@ -17,11 +17,24 @@ def test_publish_writes_preview_and_latest_fields(tmp_path: Path) -> None:
     parquet_path = tmp_path / "data.parquet"
     df.to_parquet(parquet_path, index=False)
 
+    catalog = {
+        "id": dataset_id,
+        "title": "Test",
+        "description": "Test",
+        "license": "MIT",
+        "repo": "https://github.com/example/repo",
+        "source": {"provider": "test", "homepage": "https://example.com"},
+        "topics": ["test"],
+        "owners": ["test"],
+        "frequency": "daily",
+    }
+
     published = publish_parquet_file(
         storage,
         dataset_id=dataset_id,
         parquet_path=parquet_path,
         preview_rows=2,
+        catalog=catalog,
     )
 
     meta = json.loads(storage.get_bytes(published.metadata_key))

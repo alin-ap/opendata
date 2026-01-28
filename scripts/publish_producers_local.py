@@ -30,14 +30,9 @@ def _load_catalog(main_path: Path) -> DatasetCatalog:
     raise RuntimeError(f"missing literal CATALOG in {main_path}")
 
 
-def _producer_entries(root: Path) -> list[tuple[Path, DatasetCatalog]]:
-    entries: list[tuple[Path, DatasetCatalog]] = []
-    for main_path in sorted(root.glob("**/main.py")):
-        if main_path.name != "main.py":
-            continue
-        catalog = _load_catalog(main_path)
-        entries.append((main_path.parent, catalog))
-    return entries
+def _producer_dirs(root: Path) -> list[Path]:
+    dirs = {p.parent for p in root.glob("**/main.py") if p.name == "main.py"}
+    return sorted(dirs)
 
 
 @contextmanager
@@ -61,14 +56,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     reg = Registry(storage)
 
     root = Path(args.root)
-    entries = _producer_entries(root)
+    dirs = _producer_dirs(root)
     allow = set(args.only)
 
     failures: list[str] = []
     successes = 0
 
-    for d, catalog in entries:
+    for d in dirs:
         try:
+            try:
+                catalog = _load_catalog(d / "main.py")
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(f"invalid CATALOG in {d / 'main.py'}: {e}") from e
+
             if allow and catalog.id not in allow and d.name not in allow:
                 continue
             print(f"[run] {catalog.id} ({d})")

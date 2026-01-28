@@ -7,6 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .ids import data_key, validate_dataset_id
+from .metadata import CatalogInput, coerce_catalog
 from .publish import publish_dataframe
 from .storage import storage_from_env
 from .storage.base import StorageBackend
@@ -33,13 +34,13 @@ def load(
 
 
 def push(
-    dataset_id: str,
     df: pd.DataFrame,
     *,
+    catalog: CatalogInput,
     storage: Optional[StorageBackend] = None,
 ) -> None:
     """Publish a pandas DataFrame to storage as Parquet."""
 
     storage = storage or storage_from_env()
-    validate_dataset_id(dataset_id)
-    publish_dataframe(storage, dataset_id=dataset_id, df=df)
+    cat = coerce_catalog(catalog)
+    publish_dataframe(storage, dataset_id=cat.id, df=df, catalog=cat)

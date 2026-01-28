@@ -34,9 +34,9 @@ CATALOG = {
         "homepage": "TODO: homepage URL",
         "dataset": "TODO: dataset URL",
     },
-    "topics": [],
-    "owners": [],
-    # "frequency": "daily",
+    "topics": ["todo"],
+    "owners": ["todo"],
+    "frequency": "adhoc",
 }
 
 

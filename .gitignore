@@ -19,8 +19,8 @@ build/
 node_modules/
 dist/
 
-.producers/
 
 # Local data/artifacts (never commit)
+.producers/
 .opendata/
 out/

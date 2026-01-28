@@ -35,6 +35,9 @@ CATALOG = {
     "license": "MIT",
     "repo": "https://github.com/example/repo",
     "source": {"provider": "test", "homepage": "https://example.com"},
+    "topics": ["test"],
+    "owners": ["test"],
+    "frequency": "daily",
 }
 
 
@@ -59,6 +62,9 @@ CATALOG = {
     "license": "MIT",
     "repo": "https://github.com/example/repo",
     "source": {"provider": "test", "homepage": "https://example.com"},
+    "topics": ["test"],
+    "owners": ["test"],
+    "frequency": "daily",
 }
 
 raise SystemExit(1)

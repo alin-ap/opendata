@@ -7,7 +7,8 @@ from typing import Optional
 
 from .client import load
 from .deploy import deploy_workflow
-from .errors import OpendataError
+from .errors import OpendataError, ValidationError
+from .metadata import coerce_catalog
 from .publish import publish_parquet_file
 from .registry import Registry
 from .storage import storage_from_env
@@ -26,11 +27,20 @@ def _cmd_load(args: argparse.Namespace) -> int:
 def _cmd_push(args: argparse.Namespace) -> int:
     storage = storage_from_env()
 
+    if args.catalog_file:
+        raw = Path(args.catalog_file).read_text(encoding="utf-8")
+        catalog_obj = json.loads(raw)
+    else:
+        catalog_obj = json.loads(args.catalog_json)
+    if not isinstance(catalog_obj, dict):
+        raise ValidationError("catalog must be a JSON object")
+    catalog = coerce_catalog(catalog_obj)
+
     published = publish_parquet_file(
         storage,
-        dataset_id=args.dataset_id,
+        dataset_id=catalog.id,
         parquet_path=Path(args.parquet_path),
-        write_metadata=not args.no_stats,
+        catalog=catalog,
     )
     print(json.dumps(published.metadata(), indent=2, sort_keys=True))
     return 0
@@ -53,7 +63,9 @@ def _cmd_registry_refresh(args: argparse.Namespace) -> int:
 
 
 def _cmd_deploy(args: argparse.Namespace) -> int:
-    path = deploy_workflow(repo_dir=Path(args.dir), cron=args.cron, python_version=args.python_version)
+    path = deploy_workflow(
+        repo_dir=Path(args.dir), cron=args.cron, python_version=args.python_version
+    )
     print(path)
     return 0
 
@@ -68,9 +80,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_load.set_defaults(func=_cmd_load)
 
     p_push = sub.add_parser("push", help="Publish a parquet file")
-    p_push.add_argument("dataset_id")
     p_push.add_argument("parquet_path")
-    p_push.add_argument("--no-stats", action="store_true")
+    cat = p_push.add_mutually_exclusive_group(required=True)
+    cat.add_argument("--catalog-file", help="Path to a JSON catalog file")
+    cat.add_argument("--catalog-json", help="Catalog JSON string")
     p_push.set_defaults(func=_cmd_push)
 
     p_init = sub.add_parser("init", help="Create a dataset repo skeleton")

@@ -136,14 +136,14 @@ Dataset contract / 对象 key：
 
 1. **不要** 手写对象 key；统一使用 `src/opendata/ids.py`。
 2. **不要** 在单测里访问网络或真实 bucket；默认用 `MemoryStorage`。
-3. **不要** 在 producers 运行过程中并发/增量写 `index.json`；应在批处理结束后一次性重建。
+3. **不要** 让多个 producers 并发写 `index.json`；只允许单一编排脚本/服务集中更新。
 4. **不要** 让 `src/opendata/__init__.py` 触发重 import 或任何 I/O。
 
 ### Dos (要)
 
 1. **要** 做较大改动后至少跑一遍：`ruff format --check .`、`ruff check .`、`mypy src`、`pytest`。
 2. **要** 使用 `python3` + `.venv`；R2 相关功能需安装 `pip install -e ".[r2]"`。
-3. **要** registry 由集中 rebuild 生成（`scripts/publish_producers_local.py` / `Registry.build_from_producer_root()`），避免竞态。
+3. **要** registry 由集中编排生成/更新（`scripts/publish_producers_local.py` 调用 `Registry.refresh_metadata()`），避免竞态。
 
 ## 反思记录
 

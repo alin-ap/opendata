@@ -25,11 +25,7 @@ def _canonical_json_bytes(data: dict[str, Any]) -> bytes:
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _catalog_payload(
-    catalog: Optional[CatalogInput], *, dataset_id: str
-) -> Optional[dict[str, Any]]:
-    if catalog is None:
-        return None
+def _catalog_payload(catalog: CatalogInput, *, dataset_id: str) -> dict[str, Any]:
     cat = coerce_catalog(catalog)
     if cat.id != dataset_id:
         raise ValidationError("catalog id does not match dataset_id")
@@ -142,10 +138,9 @@ def publish_parquet_file(
     *,
     dataset_id: str,
     parquet_path: Path,
-    write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
-    catalog: Optional[CatalogInput] = None,
+    catalog: CatalogInput,
 ) -> PublishedDataset:
     """Publish a parquet file + metadata (optional preview in metadata).
 
@@ -184,10 +179,9 @@ def publish_parquet_file(
         catalog=catalog_payload,
     )
 
-    if write_metadata:
-        storage.put_bytes(
-            mk, _canonical_json_bytes(published.metadata()), content_type="application/json"
-        )
+    storage.put_bytes(
+        mk, _canonical_json_bytes(published.metadata()), content_type="application/json"
+    )
 
     return published
 
@@ -223,10 +217,9 @@ def publish_table(
     *,
     dataset_id: str,
     table: pa.Table,
-    write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
-    catalog: Optional[CatalogInput] = None,
+    catalog: CatalogInput,
 ) -> PublishedDataset:
     """Publish an Arrow table as parquet bytes.
 
@@ -267,10 +260,9 @@ def publish_table(
         catalog=catalog_payload,
     )
 
-    if write_metadata:
-        storage.put_bytes(
-            mk, _canonical_json_bytes(published.metadata()), content_type="application/json"
-        )
+    storage.put_bytes(
+        mk, _canonical_json_bytes(published.metadata()), content_type="application/json"
+    )
 
     return published
 
@@ -280,10 +272,9 @@ def publish_dataframe(
     *,
     dataset_id: str,
     df: pd.DataFrame,
-    write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
-    catalog: Optional[CatalogInput] = None,
+    catalog: CatalogInput,
 ) -> PublishedDataset:
     """Publish a pandas DataFrame without writing a parquet file."""
 
@@ -292,7 +283,6 @@ def publish_dataframe(
         storage,
         dataset_id=dataset_id,
         table=table,
-        write_metadata=write_metadata,
         updated_at=updated_at,
         preview_rows=preview_rows,
         catalog=catalog,

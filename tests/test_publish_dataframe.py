@@ -22,6 +22,9 @@ def test_publish_dataframe_writes_objects() -> None:
         "license": "MIT",
         "repo": "https://github.com/example/repo",
         "source": {"provider": "example", "homepage": "https://example.com"},
+        "topics": ["example"],
+        "owners": ["example"],
+        "frequency": "adhoc",
     }
 
     published = publish_dataframe(

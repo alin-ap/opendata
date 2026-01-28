@@ -21,6 +21,9 @@ def test_publish_dataframe_from_dir_uploads_readme(tmp_path: Path) -> None:
         "license": "MIT",
         "repo": "https://github.com/example/repo",
         "source": {"provider": "example", "homepage": "https://example.com"},
+        "topics": ["example"],
+        "owners": ["example"],
+        "frequency": "adhoc",
     }
     (producer_dir / "README.md").write_text("# Hello\n", encoding="utf-8")
 
