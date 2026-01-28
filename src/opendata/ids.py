@@ -37,10 +37,6 @@ def data_key(dataset_id: str) -> str:
     return f"{dataset_prefix(dataset_id)}/data.parquet"
 
 
-def preview_key(dataset_id: str) -> str:
-    return f"{dataset_prefix(dataset_id)}/preview.json"
-
-
 def metadata_key(dataset_id: str) -> str:
     return f"{dataset_prefix(dataset_id)}/metadata.json"
 

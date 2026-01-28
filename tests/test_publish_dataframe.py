@@ -15,11 +15,21 @@ def test_publish_dataframe_writes_objects() -> None:
 
     df = pd.DataFrame({"x": [1, 2, 3], "y": ["a", "b", "c"]})
 
+    catalog = {
+        "id": dataset_id,
+        "title": "Example",
+        "description": "Example dataset",
+        "license": "MIT",
+        "repo": "https://github.com/example/repo",
+        "source": {"provider": "example", "homepage": "https://example.com"},
+    }
+
     published = publish_dataframe(
         storage,
         dataset_id=dataset_id,
         df=df,
         preview_rows=2,
+        catalog=catalog,
     )
 
     assert published.data_key == data_key(dataset_id)
@@ -28,8 +38,7 @@ def test_publish_dataframe_writes_objects() -> None:
     assert meta["dataset_id"] == dataset_id
     assert meta["row_count"] == 3
     assert meta["data_size_bytes"] > 0
-    assert meta["data_key"] == published.data_key
-    assert meta["metadata_key"] == published.metadata_key
+    assert meta["title"] == "Example"
 
     preview = meta.get("preview")
     assert preview is not None

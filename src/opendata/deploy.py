@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .metadata import load_metadata
 
-
-def render_github_actions_workflow(*, dataset_id: str, cron: str, python_version: str) -> str:
+def render_github_actions_workflow(*, cron: str, python_version: str) -> str:
     # Keep this as a plain string template so producer repos don't need extra deps.
     return (
         "name: opendata\n"
@@ -49,7 +47,6 @@ def render_github_actions_workflow(*, dataset_id: str, cron: str, python_version
 def write_github_actions_workflow(
     *,
     repo_dir: Path,
-    dataset_id: str,
     cron: str = "0 0 * * *",
     python_version: str = "3.11",
     workflow_name: str = "opendata.yml",
@@ -59,22 +56,16 @@ def write_github_actions_workflow(
 
     path = workflow_dir / workflow_name
     path.write_text(
-        render_github_actions_workflow(
-            dataset_id=dataset_id, cron=cron, python_version=python_version
-        ),
+        render_github_actions_workflow(cron=cron, python_version=python_version),
         encoding="utf-8",
     )
     return path
 
 
-def deploy_from_metadata(
+def deploy_workflow(
     *,
     repo_dir: Path,
-    meta_path: Path,
     cron: str = "0 0 * * *",
     python_version: str = "3.11",
 ) -> Path:
-    meta = load_metadata(meta_path)
-    return write_github_actions_workflow(
-        repo_dir=repo_dir, dataset_id=meta.id, cron=cron, python_version=python_version
-    )
+    return write_github_actions_workflow(repo_dir=repo_dir, cron=cron, python_version=python_version)

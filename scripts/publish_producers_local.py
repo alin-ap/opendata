@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import os
 import runpy
 from contextlib import contextmanager
@@ -8,19 +9,35 @@ from pathlib import Path
 from typing import Optional
 
 from opendata.ids import data_key, metadata_key
-from opendata.metadata import load_metadata
+from opendata.metadata import DatasetCatalog, coerce_catalog
 from opendata.portal_publish import publish_portal_assets
 from opendata.registry import Registry
 from opendata.storage import storage_from_env
 
 
-def _producer_dirs(root: Path) -> list[Path]:
-    dirs: set[Path] = set()
-    for meta_path in root.glob("**/opendata.yaml"):
-        d = meta_path.parent
-        if (d / "main.py").exists():
-            dirs.add(d)
-    return sorted(dirs)
+def _load_catalog(main_path: Path) -> DatasetCatalog:
+    raw = main_path.read_text(encoding="utf-8")
+    tree = ast.parse(raw, filename=str(main_path))
+
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == "CATALOG":
+                catalog = ast.literal_eval(node.value)
+                return coerce_catalog(catalog)
+
+    raise RuntimeError(f"missing literal CATALOG in {main_path}")
+
+
+def _producer_entries(root: Path) -> list[tuple[Path, DatasetCatalog]]:
+    entries: list[tuple[Path, DatasetCatalog]] = []
+    for main_path in sorted(root.glob("**/main.py")):
+        if main_path.name != "main.py":
+            continue
+        catalog = _load_catalog(main_path)
+        entries.append((main_path.parent, catalog))
+    return entries
 
 
 @contextmanager
@@ -44,27 +61,28 @@ def main(argv: Optional[list[str]] = None) -> int:
     reg = Registry(storage)
 
     root = Path(args.root)
-    dirs = _producer_dirs(root)
+    entries = _producer_entries(root)
     allow = set(args.only)
 
     failures: list[str] = []
     successes = 0
 
-    for d in dirs:
+    for d, catalog in entries:
         try:
-            meta = load_metadata(d / "opendata.yaml")
-            if allow and meta.id not in allow and d.name not in allow:
+            if allow and catalog.id not in allow and d.name not in allow:
                 continue
-            print(f"[run] {meta.id} ({d})")
+            print(f"[run] {catalog.id} ({d})")
 
             with _chdir(d):
                 runpy.run_path(str(d / "main.py"), run_name="__main__")
 
             # Ensure the producer actually published the stable objects.
-            if not storage.exists(data_key(meta.id)):
+            if not storage.exists(data_key(catalog.id)):
                 raise RuntimeError("producer did not publish data.parquet")
-            if not storage.exists(metadata_key(meta.id)):
+            if not storage.exists(metadata_key(catalog.id)):
                 raise RuntimeError("producer did not publish metadata.json")
+
+            reg.refresh_metadata(catalog.id)
 
             successes += 1
         except SystemExit as e:
@@ -77,9 +95,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[error] {d}: {e}")
             if not args.ignore_failures:
                 raise
-
-    # Build/refresh the global registry index after producers run.
-    reg.build_from_producer_root(root)
 
     # Publish portal assets alongside the datasets.
     repo_root = Path(__file__).resolve().parents[1]

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Optional
-
-import yaml
+from typing import Any, Optional, Union
 
 from .errors import ValidationError
 from .ids import validate_dataset_id
@@ -84,16 +81,9 @@ class GeoInfo:
 
 
 @dataclass(frozen=True)
-class DatasetMetadata:
-    """Dataset metadata stored alongside producer code.
+class DatasetCatalog:
+    """Human-authored catalog fields embedded in producer code."""
 
-    This is intended to be human-authored (YAML) and validated by both the SDK and
-    registry tooling.
-
-    NOTE: meta_version defaults to 2; other versions are unsupported.
-    """
-
-    meta_version: int
     id: str
     title: str
     description: str
@@ -106,15 +96,7 @@ class DatasetMetadata:
     geo: Optional[GeoInfo] = None
 
     @staticmethod
-    def from_dict(data: dict[str, Any]) -> DatasetMetadata:
-        raw_version = data.get("meta_version", 2)
-        try:
-            meta_version = int(raw_version)
-        except (TypeError, ValueError) as e:
-            raise ValidationError("meta_version must be an int") from e
-        if meta_version != 2:
-            raise ValidationError(f"unsupported meta_version: {meta_version}; expected 2")
-
+    def from_dict(data: dict[str, Any]) -> DatasetCatalog:
         dataset_id = str(data.get("id", ""))
         validate_dataset_id(dataset_id)
 
@@ -151,8 +133,7 @@ class DatasetMetadata:
                 raise ValidationError("geo must be a mapping")
             geo = GeoInfo.from_dict(geo_raw)
 
-        return DatasetMetadata(
-            meta_version=meta_version,
+        return DatasetCatalog(
             id=dataset_id,
             title=_req("title"),
             description=_req("description"),
@@ -167,7 +148,6 @@ class DatasetMetadata:
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
-            "meta_version": self.meta_version,
             "id": self.id,
             "title": self.title,
             "description": self.description,
@@ -185,17 +165,18 @@ class DatasetMetadata:
             data["geo"] = self.geo.to_dict()
         return data
 
-
-def load_metadata(path: Path) -> DatasetMetadata:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise ValidationError("metadata file must contain a mapping")
-    return DatasetMetadata.from_dict(raw)
+    def to_catalog_dict(self) -> dict[str, Any]:
+        data = self.to_dict()
+        data.pop("id", None)
+        return data
 
 
-def save_metadata(path: Path, meta: DatasetMetadata, *, include_meta_version: bool = True) -> None:
-    data = meta.to_dict()
-    if not include_meta_version:
-        data.pop("meta_version", None)
-    text = yaml.safe_dump(data, sort_keys=False, allow_unicode=False)
-    path.write_text(text, encoding="utf-8")
+CatalogInput = Union[DatasetCatalog, dict[str, Any]]
+
+
+def coerce_catalog(raw: CatalogInput) -> DatasetCatalog:
+    if isinstance(raw, DatasetCatalog):
+        return raw
+    if isinstance(raw, dict):
+        return DatasetCatalog.from_dict(raw)
+    raise ValidationError("catalog must be a DatasetCatalog or dict")

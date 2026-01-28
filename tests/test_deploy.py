@@ -2,24 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from opendata.deploy import deploy_from_metadata
+from opendata.deploy import deploy_workflow
 
 
 def test_deploy_writes_workflow(tmp_path: Path) -> None:
-    (tmp_path / "opendata.yaml").write_text(
-        """id: getopendata/us-stock-daily
-title: US Stock Daily
-description: Daily OHLCV bars for US stocks.
-license: MIT
-repo: https://github.com/example/repo
-source:
-  provider: stooq
-  homepage: https://stooq.com/
-""",
-        encoding="utf-8",
-    )
-
-    workflow_path = deploy_from_metadata(repo_dir=tmp_path, meta_path=tmp_path / "opendata.yaml")
+    workflow_path = deploy_workflow(repo_dir=tmp_path)
     assert workflow_path.exists()
 
     text = workflow_path.read_text(encoding="utf-8")

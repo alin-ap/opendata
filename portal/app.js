@@ -12,6 +12,18 @@ function deriveBaseUrl(url) {
   }
 }
 
+function datasetPrefix(id) {
+  return `datasets/${id}`;
+}
+
+function dataKey(id) {
+  return `${datasetPrefix(id)}/data.parquet`;
+}
+
+function metadataKey(id) {
+  return `${datasetPrefix(id)}/metadata.json`;
+}
+
 const fmt = {
   bytes: (n) => {
     if (!Number.isFinite(n) || n <= 0) return "-";
@@ -113,7 +125,8 @@ async function showDetail(id) {
   if (!ds) return;
 
   $("brand-dataset-name").textContent = ds.id;
-  $("detail-data").href = ds.data_key ? state.base + ds.data_key : "#";
+  const dataHref = ds.data_key || dataKey(ds.id);
+  $("detail-data").href = state.base + dataHref;
   $("detail-snippet").textContent = `import opendata as od\ndf = od.load("${ds.id}")`;
 
   const meta = [
@@ -126,9 +139,10 @@ async function showDetail(id) {
   $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
   $("preview").innerHTML = "<span class='muted'>Loading...</span>";
 
-  if (ds.metadata_key) {
+  const metaHref = ds.metadata_key || metadataKey(ds.id);
+  if (metaHref) {
     try {
-      const m = await fetchJson(state.base + ds.metadata_key);
+      const m = await fetchJson(state.base + metaHref);
       if (m.format) meta.push(["format", m.format]);
       if (m.columns) meta.push(["columns", m.columns.map(c => c.name).join(", ")]);
       $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");

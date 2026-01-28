@@ -8,21 +8,6 @@ from opendata.ids import data_key, metadata_key
 from opendata.storage.memory import get_memory_storage, reset_memory_storage
 
 
-def _write_meta(path: Path, dataset_id: str) -> None:
-    path.write_text(
-        f"""id: {dataset_id}
-title: Test
-description: Test
-license: MIT
-repo: https://github.com/example/repo
-source:
-  provider: test
-  homepage: https://example.com
-""",
-        encoding="utf-8",
-    )
-
-
 def test_publish_producers_script_ignore_failures(tmp_path: Path, monkeypatch) -> None:
     reset_memory_storage()
     monkeypatch.setenv("OPENDATA_STORAGE", "memory")
@@ -34,7 +19,6 @@ def test_publish_producers_script_ignore_failures(tmp_path: Path, monkeypatch) -
     ok.mkdir(parents=True)
     bad.mkdir(parents=True)
 
-    _write_meta(ok / "opendata.yaml", "alice/ok-dataset")
     (ok / "main.py").write_text(
         """from __future__ import annotations
 
@@ -44,10 +28,19 @@ import pandas as pd
 
 from opendata.producer import publish_dataframe_from_dir
 
+CATALOG = {
+    "id": "alice/ok-dataset",
+    "title": "OK",
+    "description": "OK",
+    "license": "MIT",
+    "repo": "https://github.com/example/repo",
+    "source": {"provider": "test", "homepage": "https://example.com"},
+}
+
 
 def main() -> None:
     df = pd.DataFrame({"a": [1, 2, 3]})
-    publish_dataframe_from_dir(Path(__file__).resolve().parent, df=df)
+    publish_dataframe_from_dir(Path(__file__).resolve().parent, df=df, catalog=CATALOG)
 
 
 if __name__ == "__main__":
@@ -56,9 +49,17 @@ if __name__ == "__main__":
         encoding="utf-8",
     )
 
-    _write_meta(bad / "opendata.yaml", "alice/bad-dataset")
     (bad / "main.py").write_text(
         """from __future__ import annotations
+
+CATALOG = {
+    "id": "alice/bad-dataset",
+    "title": "Bad",
+    "description": "Bad",
+    "license": "MIT",
+    "repo": "https://github.com/example/repo",
+    "source": {"provider": "test", "homepage": "https://example.com"},
+}
 
 raise SystemExit(1)
 """,
@@ -78,7 +79,6 @@ raise SystemExit(1)
     assert storage.exists(metadata_key("alice/ok-dataset"))
 
     index = json.loads(storage.get_bytes("index.json"))
-    assert len(index["datasets"]) == 2
     ids = [d["id"] for d in index["datasets"]]
     assert "alice/ok-dataset" in ids
-    assert "alice/bad-dataset" in ids
+    assert "alice/bad-dataset" not in ids

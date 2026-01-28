@@ -8,6 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from .errors import ValidationError
 from .hashing import sha256_bytes, sha256_file
 from .ids import (
     data_key,
@@ -15,12 +16,24 @@ from .ids import (
     readme_key,
     validate_dataset_id,
 )
+from .metadata import CatalogInput, coerce_catalog
 from .storage.base import StorageBackend
 from .versioning import utc_now_iso
 
 
 def _canonical_json_bytes(data: dict[str, Any]) -> bytes:
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _catalog_payload(
+    catalog: Optional[CatalogInput], *, dataset_id: str
+) -> Optional[dict[str, Any]]:
+    if catalog is None:
+        return None
+    cat = coerce_catalog(catalog)
+    if cat.id != dataset_id:
+        raise ValidationError("catalog id does not match dataset_id")
+    return cat.to_catalog_dict()
 
 
 def _parquet_schema_columns(path: Path) -> list[dict[str, str]]:
@@ -95,6 +108,7 @@ class PublishedDataset:
         checksum_sha256: str,
         columns: list[dict[str, str]],
         preview: Optional[dict[str, Any]] = None,
+        catalog: Optional[dict[str, Any]] = None,
     ) -> None:
         self.dataset_id = dataset_id
         self.updated_at = updated_at
@@ -105,19 +119,19 @@ class PublishedDataset:
         self.checksum_sha256 = checksum_sha256
         self.columns = columns
         self.preview = preview
+        self.catalog = catalog
 
     def metadata(self) -> dict[str, Any]:
         meta: dict[str, Any] = {
             "dataset_id": self.dataset_id,
             "updated_at": self.updated_at,
-            "data_key": self.data_key,
-            "metadata_key": self.metadata_key,
             "row_count": self.row_count,
             "data_size_bytes": self.data_size_bytes,
             "checksum_sha256": self.checksum_sha256,
-            "format": "parquet",
             "columns": self.columns,
         }
+        if self.catalog:
+            meta.update(self.catalog)
         if self.preview is not None:
             meta["preview"] = self.preview
         return meta
@@ -131,6 +145,7 @@ def publish_parquet_file(
     write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
+    catalog: Optional[CatalogInput] = None,
 ) -> PublishedDataset:
     """Publish a parquet file + metadata (optional preview in metadata).
 
@@ -152,6 +167,8 @@ def publish_parquet_file(
     if preview_rows > 0:
         preview_obj = _parquet_preview_json(parquet_path, preview_rows=preview_rows)
 
+    catalog_payload = _catalog_payload(catalog, dataset_id=dataset_id)
+
     storage.put_bytes(dk, parquet_path.read_bytes(), content_type="application/octet-stream")
 
     published = PublishedDataset(
@@ -164,6 +181,7 @@ def publish_parquet_file(
         checksum_sha256=checksum_sha256,
         columns=columns,
         preview=preview_obj,
+        catalog=catalog_payload,
     )
 
     if write_metadata:
@@ -208,6 +226,7 @@ def publish_table(
     write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
+    catalog: Optional[CatalogInput] = None,
 ) -> PublishedDataset:
     """Publish an Arrow table as parquet bytes.
 
@@ -226,6 +245,8 @@ def publish_table(
     if preview_rows > 0:
         preview_obj = _table_preview_json(table, preview_rows=preview_rows)
 
+    catalog_payload = _catalog_payload(catalog, dataset_id=dataset_id)
+
     parquet_bytes = _table_to_parquet_bytes(table)
     data_size_bytes = len(parquet_bytes)
 
@@ -243,6 +264,7 @@ def publish_table(
         checksum_sha256=checksum_sha256,
         columns=columns,
         preview=preview_obj,
+        catalog=catalog_payload,
     )
 
     if write_metadata:
@@ -261,6 +283,7 @@ def publish_dataframe(
     write_metadata: bool = True,
     updated_at: Optional[str] = None,
     preview_rows: int = 100,
+    catalog: Optional[CatalogInput] = None,
 ) -> PublishedDataset:
     """Publish a pandas DataFrame without writing a parquet file."""
 
@@ -272,4 +295,5 @@ def publish_dataframe(
         write_metadata=write_metadata,
         updated_at=updated_at,
         preview_rows=preview_rows,
+        catalog=catalog,
     )
