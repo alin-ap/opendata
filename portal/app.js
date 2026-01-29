@@ -26,7 +26,8 @@ function metadataKey(id) {
 
 const fmt = {
   bytes: (n) => {
-    if (!Number.isFinite(n) || n <= 0) return "-";
+    if (!Number.isFinite(n) || n < 0) return "-";
+    if (n === 0) return "0 B";
     const u = ["B", "KB", "MB", "GB"];
     let v = n, i = 0;
     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
@@ -34,6 +35,10 @@ const fmt = {
   },
   rows: (n) => Number.isFinite(n) && n >= 0 ? n.toLocaleString() : "-",
   date: (s) => s ? s.slice(0, 10) : "-",
+  bytesWithRaw: (n) => {
+    if (!Number.isFinite(n) || n < 0) return "-";
+    return `${n.toLocaleString()} (${fmt.bytes(n)})`;
+  },
 };
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -75,6 +80,92 @@ function renderPreview(p) {
   const h = p.columns.map(c => `<th>${esc(c)}</th>`).join("");
   const b = (p.rows || []).map(r => "<tr>" + p.columns.map(c => `<td>${esc(r[c] ?? "")}</td>`).join("") + "</tr>").join("");
   return `<table><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table>`;
+}
+
+function formatList(list) {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return list.map((v) => String(v)).join(", ");
+}
+
+function formatColumns(columns) {
+  if (!Array.isArray(columns) || columns.length === 0) return null;
+  const out = columns.map((c) => {
+    if (!c) return null;
+    if (typeof c === "string") return c;
+    if (typeof c === "object") {
+      const name = typeof c.name === "string" ? c.name : "";
+      const type = typeof c.type === "string" ? c.type : "";
+      if (name && type) return `${name} (${type})`;
+      if (name) return name;
+      if (type) return type;
+    }
+    return null;
+  }).filter(Boolean);
+  return out.length ? out.join(", ") : null;
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) return formatList(value);
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function addMeta(entries, seen, key, value, formatter) {
+  const formatted = formatter ? formatter(value) : formatValue(value);
+  if (formatted === null || formatted === "" || formatted === "-") return;
+  entries.push([key, formatted]);
+  seen.add(key);
+}
+
+function buildMetaEntries(ds, m) {
+  const merged = { ...ds, ...(m || {}) };
+  const entries = [];
+  const seen = new Set();
+  const datasetId = (m && m.dataset_id) || ds.id;
+
+  addMeta(entries, seen, "dataset_id", datasetId);
+  addMeta(entries, seen, "title", merged.title);
+  addMeta(entries, seen, "description", merged.description);
+  addMeta(entries, seen, "updated_at", merged.updated_at);
+  addMeta(entries, seen, "row_count", merged.row_count, fmt.rows);
+  addMeta(entries, seen, "data_size_bytes", merged.data_size_bytes, fmt.bytesWithRaw);
+  addMeta(entries, seen, "license", merged.license);
+  addMeta(entries, seen, "frequency", merged.frequency);
+  addMeta(entries, seen, "repo", merged.repo);
+  addMeta(entries, seen, "topics", merged.topics, formatList);
+  addMeta(entries, seen, "owners", merged.owners, formatList);
+
+  const source = (m && m.source) || ds.source;
+  if (source && typeof source === "object") {
+    addMeta(entries, seen, "source.provider", source.provider);
+    addMeta(entries, seen, "source.homepage", source.homepage);
+    addMeta(entries, seen, "source.dataset", source.dataset);
+  }
+
+  const geo = (m && m.geo) || ds.geo;
+  if (geo && typeof geo === "object") {
+    addMeta(entries, seen, "geo.scope", geo.scope);
+    addMeta(entries, seen, "geo.countries", geo.countries, formatList);
+    addMeta(entries, seen, "geo.regions", geo.regions, formatList);
+  }
+
+  addMeta(entries, seen, "checksum_sha256", merged.checksum_sha256);
+  addMeta(entries, seen, "columns", m && m.columns, formatColumns);
+
+  if (m && m.preview && typeof m.preview === "object") {
+    addMeta(entries, seen, "preview.generated_at", m.preview.generated_at);
+  }
+
+  if (m && typeof m === "object") {
+    for (const [key, value] of Object.entries(m)) {
+      if (seen.has(key)) continue;
+      if (key === "preview" || key === "columns" || key === "source" || key === "geo") continue;
+      addMeta(entries, seen, key, value);
+    }
+  }
+
+  return entries;
 }
 
 async function fetchJson(url) {
@@ -129,13 +220,7 @@ async function showDetail(id) {
   $("detail-data").href = state.base + dataHref;
   $("detail-snippet").textContent = `import opendata as od\ndf = od.load("${ds.id}")`;
 
-  const meta = [
-    ["updated", fmt.date(ds.updated_at)],
-    ["rows", fmt.rows(ds.row_count)],
-    ["size", fmt.bytes(ds.data_size_bytes)],
-    ["license", ds.license],
-    ["frequency", ds.frequency],
-  ].filter(([,v]) => v && v !== "-");
+  const meta = buildMetaEntries(ds, null);
   $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
   $("preview").innerHTML = "<span class='muted'>Loading...</span>";
 
@@ -143,9 +228,8 @@ async function showDetail(id) {
   if (metaHref) {
     try {
       const m = await fetchJson(state.base + metaHref);
-      if (m.format) meta.push(["format", m.format]);
-      if (m.columns) meta.push(["columns", m.columns.map(c => c.name).join(", ")]);
-      $("detail-meta").innerHTML = meta.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+      const metaFull = buildMetaEntries(ds, m);
+      $("detail-meta").innerHTML = metaFull.map(([k,v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
 
       if (m.preview) {
         $("preview").innerHTML = renderPreview(m.preview);
